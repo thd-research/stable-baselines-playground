@@ -2,6 +2,11 @@ import argparse
 import torch
 import numpy as np
 
+import mlflow
+from typing import Dict, Any, Tuple, Union
+from stable_baselines3.common.logger import HumanOutputFormat, KVWriter, Logger
+import sys
+
 from stable_baselines3 import PPO
 from stable_baselines3.common.utils import set_random_seed
 from stable_baselines3.common.vec_env import DummyVecEnv, VecTransposeImage
@@ -36,6 +41,30 @@ ppo_hyperparams = {
     "clip_range": 0.2,  # Clipping range for the PPO objective to prevent large policy updates. Keeps updates more conservative.
     # "learning_rate": get_linear_fn(1e-4, 0.5e-5, total_timesteps),  # Linear decay from
 }
+
+class MLflowOutputFormat(KVWriter):
+    """
+    Dumps key/value pairs into MLflow's numeric format.
+    """
+
+    def write(
+        self,
+        key_values: Dict[str, Any],
+        key_excluded: Dict[str, Union[str, Tuple[str, ...]]],
+        step: int = 0,
+    ) -> None:
+
+        for (key, value), (_, excluded) in zip(
+            sorted(key_values.items()), sorted(key_excluded.items())
+        ):
+
+            if excluded is not None and "mlflow" in excluded:
+                continue
+
+            if isinstance(value, np.ScalarType):
+                if not isinstance(value, str):
+                    mlflow.log_metric(key, value, step)
+
 
 if __name__ == "__main__":
 
@@ -82,6 +111,12 @@ if __name__ == "__main__":
         features_extractor_kwargs=dict(features_dim=32)
     )
 
+    loggers = Logger(
+        folder=None,
+        output_formats=[HumanOutputFormat(sys.stdout), MLflowOutputFormat()],
+    )
+
+
     # Create the PPO agent using the custom feature extractor
     model = PPO(
         "CnnPolicy",
@@ -95,6 +130,8 @@ if __name__ == "__main__":
         clip_range=ppo_hyperparams["clip_range"],
         verbose=1,
     )
+    model.set_logger(loggers)
+    
     print("Model initialized successfully.")
 
     # begin----Callbacks----

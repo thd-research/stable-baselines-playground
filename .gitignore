@@ -6,6 +6,9 @@ __pycache__/
 # torch
 checkpoints/
 
+# mlflow runs
+mlruns/
+
 # C extensions
 *.so
 

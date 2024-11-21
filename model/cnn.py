@@ -68,12 +68,13 @@ class CustomCNN(nn.Module):
 
         # Define the linear layer to produce the desired feature dimension
         self.linear = nn.Linear(n_flatten, features_dim)
+        self.linear2 = nn.Linear(features_dim, features_dim)
 
         # Set the features_dim attribute
         self.features_dim = features_dim        
 
     def forward(self, observations: torch.Tensor) -> torch.Tensor:
-        return self.linear(self.cnn(observations))
+        return self.linear2(self.linear(self.cnn(observations)))
 
 # class SimplifiedCNN(nn.Module):
 #     def __init__(self, observation_space, features_dim=256):
