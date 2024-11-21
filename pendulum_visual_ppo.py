@@ -27,21 +27,21 @@ from stable_baselines3.common.vec_env import VecNormalize
 
 # Global parameters
 # total_timesteps = 131072 * 4
-total_timesteps = 131072 * 10
+total_timesteps = 500000
 episode_timesteps = 256
 image_height = 64
 image_width = 64
 save_model_every_steps = 8192 * 4
-parallel_envs = 2
+parallel_envs = 1
 
 # Define the hyperparameters for PPO
 ppo_hyperparams = {
-    "learning_rate": 1e-3,  # The step size used to update the policy network. Lower values can make learning more stable.
-    "n_steps": 512,  # Number of steps to collect before performing a policy update. Larger values may lead to more stable updates.
-    "batch_size": 2048,  # Number of samples used in each update. Smaller values can lead to higher variance, while larger values stabilize learning.
-    "gamma": 0.99,  # Discount factor for future rewards. Closer to 1 means the agent places more emphasis on long-term rewards.
-    "gae_lambda": 0.9,  # Generalized Advantage Estimation (GAE) parameter. Balances bias vs. variance; lower values favor bias.
-    "clip_range": 0.2,  # Clipping range for the PPO objective to prevent large policy updates. Keeps updates more conservative.
+    "learning_rate": 1e-4,  # The step size used to update the policy network. Lower values can make learning more stable.
+    "n_steps": 1000,  # Number of steps to collect before performing a policy update. Larger values may lead to more stable updates.
+    "batch_size": 200,  # Number of samples used in each update. Smaller values can lead to higher variance, while larger values stabilize learning.
+    "gamma": 0.95,  # Discount factor for future rewards. Closer to 1 means the agent places more emphasis on long-term rewards.
+    "gae_lambda": 0.5,  # Generalized Advantage Estimation (GAE) parameter. Balances bias vs. variance; lower values favor bias.
+    "clip_range": 0.05,  # Clipping range for the PPO objective to prevent large policy updates. Keeps updates more conservative.
     # "learning_rate": get_linear_fn(1e-4, 0.5e-5, total_timesteps),  # Linear decay from
 }
 
@@ -93,8 +93,8 @@ def main():
         return _init
 
     # Use SubprocVecEnv to run environments in parallel
-    env = SubprocVecEnv([make_env(seed) for seed in range(parallel_envs)])
-
+    # env = SubprocVecEnv([make_env(seed) for seed in range(parallel_envs)])
+    env = make_env(42)()
     # Apply reward and observation normalization if --normalize flag is provided
     if args.normalize:
         env = VecNormalize(env, norm_obs=False, norm_reward=True, clip_obs=10.0)
@@ -109,7 +109,8 @@ def main():
     # Define the policy_kwargs to use the custom CNN
     policy_kwargs = dict(
         features_extractor_class=CustomCNN,
-        features_extractor_kwargs=dict(features_dim=32)
+        # features_extractor_kwargs=dict(features_dim=32),
+        share_features_extractor=False
     )
 
     loggers = Logger(
@@ -150,7 +151,7 @@ def main():
     cnn_output_callback = SaveCNNOutputCallback(
         save_path="./cnn_outputs", 
         obs_sample=sample_obs, 
-        every_n_steps=5000
+        every_n_steps=50000
     )
 
     # Set up a checkpoint callback to save the model every 'save_freq' steps
@@ -161,18 +162,18 @@ def main():
     )
 
     # Instantiate a plotting callback to show the live learning curve
-    plotting_callback = PlottingCallback()
+    # plotting_callback = PlottingCallback()
 
     # Instantiate the GradientMonitorCallback
     gradient_monitor_callback = GradientMonitorCallback()    
 
     # If --console flag is set, disable the plot and just save the data
-    if args.console:
-        plotting_callback.figure = None  # Disable plotting
-        print("Console mode: Graphical output disabled. Episode rewards will be saved to 'episode_rewards.csv'.")
+    # if args.console:
+    #     plotting_callback.figure = None  # Disable plotting
+    #     print("Console mode: Graphical output disabled. Episode rewards will be saved to 'episode_rewards.csv'.")
 
     # Combine both callbacks using CallbackList
-    callback = CallbackList([checkpoint_callback, plotting_callback, gradient_monitor_callback, cnn_output_callback])
+    callback = CallbackList([checkpoint_callback, gradient_monitor_callback, cnn_output_callback])
 
     # end----Callbacks----
 
@@ -235,7 +236,7 @@ if __name__ == "__main__":
 
     if mlflow.get_experiment_by_name(experiment_name) is None:
         mlflow.create_experiment(experiment_name)
-        
+
     mlflow.set_experiment(experiment_name)
 
     with mlflow.start_run(run_name=run_name):
