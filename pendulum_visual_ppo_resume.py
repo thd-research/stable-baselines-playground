@@ -27,7 +27,7 @@ from stable_baselines3.common.vec_env import VecNormalize
 
 # Global parameters
 # total_timesteps = 131072 * 4
-total_timesteps = 5000000
+total_timesteps = 2500000
 episode_timesteps = 256
 image_height = 64
 image_width = 64
@@ -179,7 +179,13 @@ def main():
 
     # Train the model if --notrain flag is not provided
     if not args.notrain:
-        print("Starting training ...")
+        print("Resume training ...")
+        model = PPO.load("ppo_visual_pendulum")
+
+        if args.normalize:
+            env = VecNormalize.load("vecnormalize_stats.pkl", env)
+        model.set_env(env)
+
         model.learn(total_timesteps=total_timesteps, callback=callback)
         model.save("ppo_visual_pendulum")
 
@@ -231,7 +237,7 @@ def main():
 
 if __name__ == "__main__":
     # Parse command-line arguments
-    experiment_name = "PPO_Visual"
+    experiment_name = "PPO_Visual_resume"
     run_name = datetime.now().strftime("%Y-%m-%d %H-%M-%S")
 
     if mlflow.get_experiment_by_name(experiment_name) is None:
