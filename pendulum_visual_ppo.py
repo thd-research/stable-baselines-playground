@@ -6,6 +6,7 @@ import mlflow
 from typing import Dict, Any, Tuple, Union
 from stable_baselines3.common.logger import HumanOutputFormat, KVWriter, Logger
 import sys
+from datetime import datetime
 
 from stable_baselines3 import PPO
 from stable_baselines3.common.utils import set_random_seed
@@ -23,17 +24,19 @@ from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.callbacks import CheckpointCallback, CallbackList
 from stable_baselines3.common.vec_env import VecNormalize
 
+
 # Global parameters
-total_timesteps = 131072 * 4
+# total_timesteps = 131072 * 4
+total_timesteps = 131072 * 10
 episode_timesteps = 256
 image_height = 64
 image_width = 64
 save_model_every_steps = 8192 * 4
-parallel_envs = 8
+parallel_envs = 2
 
 # Define the hyperparameters for PPO
 ppo_hyperparams = {
-    "learning_rate": 4e-4,  # The step size used to update the policy network. Lower values can make learning more stable.
+    "learning_rate": 1e-3,  # The step size used to update the policy network. Lower values can make learning more stable.
     "n_steps": 512,  # Number of steps to collect before performing a policy update. Larger values may lead to more stable updates.
     "batch_size": 2048,  # Number of samples used in each update. Smaller values can lead to higher variance, while larger values stabilize learning.
     "gamma": 0.99,  # Discount factor for future rewards. Closer to 1 means the agent places more emphasis on long-term rewards.
@@ -66,9 +69,7 @@ class MLflowOutputFormat(KVWriter):
                     mlflow.log_metric(key, value, step)
 
 
-if __name__ == "__main__":
-
-    # Parse command-line arguments
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--notrain", action="store_true", help="Skip training and only run evaluation")
     parser.add_argument("--console", action="store_true", help="Disable graphical output for console-only mode")
@@ -225,3 +226,17 @@ if __name__ == "__main__":
     # Close the environments
     env_agent.close()
     env_display.close()
+
+
+if __name__ == "__main__":
+    # Parse command-line arguments
+    experiment_name = "PPO_Visual"
+    run_name = datetime.now().strftime("%Y-%m-%d %H-%M-%S")
+
+    if mlflow.get_experiment_by_name(experiment_name) is None:
+        mlflow.create_experiment(experiment_name)
+        
+    mlflow.set_experiment(experiment_name)
+
+    with mlflow.start_run(run_name=run_name):
+        main()
