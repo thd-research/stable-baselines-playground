@@ -3,6 +3,7 @@ import pandas as pd
 import os
 import matplotlib
 import signal
+import gymnasium as gym
 
 from stable_baselines3 import PPO
 from stable_baselines3.common.utils import set_random_seed
@@ -21,6 +22,7 @@ from src.mygym.my_pendulum import PendulumVisualNoArrowParallelizable
 
 from src.wrapper.pendulum_wrapper import ResizeObservation
 from src.wrapper.pendulum_wrapper import AddTruncatedFlagWrapper
+from src.wrapper.visual_wrapper import VisualWrapper
 
 from src.callback.plotting_callback import PlottingCallback
 from src.callback.grad_monitor_callback import GradientMonitorCallback
@@ -86,7 +88,9 @@ def main(args, **kwargs):
         # Function to create the base environment
         def make_env(seed):
             def _init():
-                env = PendulumVisualNoArrowParallelizable()
+                # env = PendulumVisualNoArrowParallelizable()
+                env = gym.make("Pendulum-v1", render_mode="rgb_array")
+                env = VisualWrapper(env)
                 # env = LoggingWrapper(env)  # For debugging: log each step. Comment out by default
                 env = TimeLimit(env, max_episode_steps=episode_timesteps)
                 env = ResizeObservation(env, (image_height, image_width))
@@ -109,12 +113,17 @@ def main(args, **kwargs):
         env = VecTransposeImage(env)
 
         # Apply reward and observation normalization if --normalize flag is provided
-        if args.normalize and False:
+        if args.normalize:
             env = VecNormalize(env, norm_obs=False, norm_reward=True, clip_obs=10.0)
             print("Reward normalization enabled. Observations are pre-normalized to [0, 1].")
 
         env.seed(seed=args.seed)
         obs = env.reset()
+
+        # import matplotlib.pyplot as plt
+
+        # plt.imshow(obs.transpose(0, 2, 3, 1)[2][:, :, -3:])
+        # plt.show(block=True)
         print("Environment reset successfully.")
 
         # Set random seed for reproducibility

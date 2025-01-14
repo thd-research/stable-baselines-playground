@@ -1,8 +1,11 @@
-import argparse
 import pandas as pd
 import os
 import matplotlib
 import signal
+import gymnasium as gym
+
+import numpy as np
+np.float_ = np.float64
 
 from stable_baselines3 import PPO
 from stable_baselines3.common.utils import set_random_seed
@@ -17,21 +20,19 @@ from gymnasium.wrappers import TimeLimit
 from src.model.cnn import CustomCNN
 
 from src.mygym.my_pendulum import PendulumVisual
-from src.mygym.my_pendulum import PendulumVisualNoArrowParallelizable
 
 from src.wrapper.pendulum_wrapper import ResizeObservation
 from src.wrapper.pendulum_wrapper import AddTruncatedFlagWrapper
+from src.wrapper.visual_wrapper import VisualWrapper
 
 from src.callback.plotting_callback import PlottingCallback
 from src.callback.grad_monitor_callback import GradientMonitorCallback
-
-from src.agent.debug_ppo import DebugPPO
 
 from src.utilities.clean_cnn_outputs import clean_cnn_outputs
 from src.utilities.intercept_termination import save_model_and_data, signal_handler
 from src.utilities.mlflow_logger import mlflow_monotoring, get_ml_logger
 
-from run.ppo_vispendulum_self_boost.args_parser import parse_args, ExperimentConfig, PPOHyperparameters
+from run.ppo_visacrobot_default.args_parser import parse_args, ExperimentConfig, PPOHyperparameters
 
 
 os.makedirs("logs", exist_ok=True)
@@ -53,6 +54,7 @@ ppo_hyperparams = {
     "gamma": 0.99,  # Discount factor for future rewards. Closer to 1 means the agent places more emphasis on long-term rewards.
     "gae_lambda": 0.9,  # Generalized Advantage Estimation (GAE) parameter. Balances bias vs. variance; lower values favor bias.
     "clip_range": 0.2,  # Clipping range for the PPO objective to prevent large policy updates. Keeps updates more conservative.
+    "n_stacked_frame": 8, # The number of stacked frame feed forward to the policy model
     # "learning_rate": get_linear_fn(1e-4, 0.5e-5, total_timesteps),  # Linear decay from
 }
 
@@ -77,23 +79,20 @@ def main(args, **kwargs):
     else:
         matplotlib.use("TkAgg")
 
+    # Function to create the base environment
+    def make_env(seed):
+        def _init():
+            env = gym.make("Acrobot-v1", render_mode="rgb_array")
+            # env = LoggingWrapper(env)  # For debugging: log each step. Comment out by default
+            env = VisualWrapper(env)
+            env = TimeLimit(env, max_episode_steps=episode_timesteps)
+            env = ResizeObservation(env, (image_height, image_width))
+            env.reset(seed=seed)
+            return env
+        return _init
+    
     # Train the model if --notrain flag is not provided
     if not args.notrain:
-
-        # Define a global variable for the training loop
-        is_training = True
-
-        # Function to create the base environment
-        def make_env(seed):
-            def _init():
-                env = PendulumVisualNoArrowParallelizable()
-                # env = LoggingWrapper(env)  # For debugging: log each step. Comment out by default
-                env = TimeLimit(env, max_episode_steps=episode_timesteps)
-                env = ResizeObservation(env, (image_height, image_width))
-                env.reset(seed=seed)
-                return env
-            return _init
-
         # Environment setup based on --single-thread flag
         if args.single_thread:
             print("Using single-threaded environment (DummyVecEnv).")
@@ -103,13 +102,13 @@ def main(args, **kwargs):
             env = SubprocVecEnv([make_env(seed) for seed in range(parallel_envs)])
 
         # Apply VecFrameStack to stack frames along the channel dimension
-        env = VecFrameStack(env, n_stack=4)
+        env = VecFrameStack(env, n_stack=args.ppo.n_stacked_frame)
 
         # Apply VecTransposeImage
         env = VecTransposeImage(env)
 
         # Apply reward and observation normalization if --normalize flag is provided
-        if args.normalize and False:
+        if args.normalize:
             env = VecNormalize(env, norm_obs=False, norm_reward=True, clip_obs=10.0)
             print("Reward normalization enabled. Observations are pre-normalized to [0, 1].")
 
@@ -123,11 +122,11 @@ def main(args, **kwargs):
         # Define the policy_kwargs to use the custom CNN
         policy_kwargs = dict(
             features_extractor_class=CustomCNN,
-            features_extractor_kwargs=dict(features_dim=256, num_frames=4)  # Adjust num_frames as needed
+            features_extractor_kwargs=dict(features_dim=256, num_frames=args.ppo.n_stacked_frame)  # Adjust num_frames as needed
         )
 
         # Create the PPO agent using the custom feature extractor
-        model = DebugPPO(
+        model = PPO(
             "CnnPolicy",
             env,
             policy_kwargs=policy_kwargs,
@@ -149,14 +148,14 @@ def main(args, **kwargs):
         checkpoint_callback = CheckpointCallback(
             save_freq=save_model_every_steps,  # Save the model periodically
             save_path="./artifacts/checkpoints",  # Directory to save the model
-            name_prefix="ppo_vispendulum"
+            name_prefix="ppo_visacrobot"
         )
 
         # Instantiate a plotting callback to show the live learning curve
         plotting_callback = PlottingCallback()
 
         # Instantiate the GradientMonitorCallback
-        gradient_monitor_callback = GradientMonitorCallback()    
+        gradient_monitor_callback = GradientMonitorCallback()
 
         # If --console flag is set, disable the plot and just save the data
         if args.console:
@@ -180,7 +179,7 @@ def main(args, **kwargs):
         finally:
             print("Training completed or interrupted.")
 
-        model.save("./artifacts/checkpoints/ppo_vispendulum")
+        model.save("./artifacts/checkpoints/ppo_visacrobot")
 
         # Save the normalization statistics if --normalize is used
         if args.normalize:
@@ -194,21 +193,22 @@ def main(args, **kwargs):
         if args.eval_checkpoint:
             model = PPO.load(args.eval_checkpoint)
         elif args.loadstep:
-            model = PPO.load(f"./artifacts/checkpoints/ppo_vispendulum_{args.loadstep}_steps")
+            model = PPO.load(f"./artifacts/checkpoints/ppo_visacrobot_{args.loadstep}_steps")
         else:
-            model = PPO.load("./artifacts/checkpoints/ppo_vispendulum")
+            model = PPO.load("./artifacts/checkpoints/ppo_visacrobot")
 
     # Visual evaluation after training or loading
     print("Starting evaluation...")
 
     # Environment for the agent (using 'rgb_array' mode)
-    env_agent = DummyVecEnv([
-        lambda: AddTruncatedFlagWrapper(
-            ResizeObservation(PendulumVisual(render_mode="rgb_array"), 
-                              (image_height, image_width))
-        )
-    ])
-    env_agent = VecFrameStack(env_agent, n_stack=4)
+    # env_agent = DummyVecEnv([
+    #     lambda: AddTruncatedFlagWrapper(
+    #         ResizeObservation(PendulumVisual(render_mode="rgb_array"), 
+    #                           (image_height, image_width))
+    #     )
+    # ])
+    env_agent = DummyVecEnv([make_env(0)])
+    env_agent = VecFrameStack(env_agent, n_stack=args.ppo.n_stacked_frame)
     env_agent = VecTransposeImage(env_agent)
 
     # Load the normalization statistics if --normalize is used
@@ -218,7 +218,7 @@ def main(args, **kwargs):
         env_agent.norm_reward = False  # Disable reward normalization for evaluation
 
     # Environment for visualization (using 'human' mode)
-    env_display = PendulumVisual(render_mode="rgb_array" if args.console else "human")
+    env_display = gym.make("Acrobot-v1", render_mode="rgb_array" if args.console else "human")
 
     # Reset the environments
     env_agent.seed(seed=args.seed)
@@ -248,7 +248,7 @@ def main(args, **kwargs):
             obs, reward, done, truncated, info = result
 
         # Handle the display environment
-        env_display.step(action)  # Step in the display environment to show animation
+        env_display.step(action[0])  # Step in the display environment to show animation
 
         if done:
             obs = env_agent.reset()  # Reset the agent's environment
@@ -267,9 +267,9 @@ def main(args, **kwargs):
 
     df = pd.DataFrame(info_dict)
     if args.eval_name:
-        file_name = f"ppo_vispendulum_eval_{args.eval_name}_seed_{args.seed}.csv"
+        file_name = f"ppo_visacrobot_eval_{args.eval_name}_seed_{args.seed}.csv"
     else:
-        file_name = f"ppo_vispendulum_eval_{args.loadstep}_seed_{args.seed}.csv"
+        file_name = f"ppo_visacrobot_eval_{args.loadstep}_seed_{args.seed}.csv"
 
     if args.log:
         df.to_csv("logs/" + file_name)
@@ -288,6 +288,7 @@ if __name__ == "__main__":
                             gamma=ppo_hyperparams["gamma"],
                             gae_lambda=ppo_hyperparams["gae_lambda"],
                             clip_range=ppo_hyperparams["clip_range"],
+                            n_stacked_frame=ppo_hyperparams["n_stacked_frame"],
                         )
                     ))
 

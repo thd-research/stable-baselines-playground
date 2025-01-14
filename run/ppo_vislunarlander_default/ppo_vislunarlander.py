@@ -51,6 +51,7 @@ ppo_hyperparams = {
     "gamma": 0.99,  # Discount factor for future rewards. Closer to 1 means the agent places more emphasis on long-term rewards.
     "gae_lambda": 0.9,  # Generalized Advantage Estimation (GAE) parameter. Balances bias vs. variance; lower values favor bias.
     "clip_range": 0.2,  # Clipping range for the PPO objective to prevent large policy updates. Keeps updates more conservative.
+    "n_stacked_frame": 8, # The number of stacked frame feed forward to the policy model
     # "learning_rate": get_linear_fn(1e-4, 0.5e-5, total_timesteps),  # Linear decay from
 }
 
@@ -98,7 +99,7 @@ def main(args, **kwargs):
             env = SubprocVecEnv([make_env(seed) for seed in range(parallel_envs)])
 
         # Apply VecFrameStack to stack frames along the channel dimension
-        env = VecFrameStack(env, n_stack=4)
+        env = VecFrameStack(env, n_stack=args.ppo.n_stacked_frame)
 
         # Apply VecTransposeImage
         env = VecTransposeImage(env)
@@ -118,7 +119,7 @@ def main(args, **kwargs):
         # Define the policy_kwargs to use the custom CNN
         policy_kwargs = dict(
             features_extractor_class=CustomCNN,
-            features_extractor_kwargs=dict(features_dim=256, num_frames=4)  # Adjust num_frames as needed
+            features_extractor_kwargs=dict(features_dim=256, num_frames=args.ppo.n_stacked_frame)  # Adjust num_frames as needed
         )
 
         # Create the PPO agent using the custom feature extractor
@@ -204,7 +205,7 @@ def main(args, **kwargs):
     #     )
     # ])
     env_agent = DummyVecEnv([make_env(0)])
-    env_agent = VecFrameStack(env_agent, n_stack=4)
+    env_agent = VecFrameStack(env_agent, n_stack=args.ppo.n_stacked_frame)
     env_agent = VecTransposeImage(env_agent)
 
     # Load the normalization statistics if --normalize is used
@@ -214,7 +215,7 @@ def main(args, **kwargs):
         env_agent.norm_reward = False  # Disable reward normalization for evaluation
 
     # Environment for visualization (using 'human' mode)
-    env_display = PendulumVisual(render_mode="rgb_array" if args.console else "human")
+    env_display = gym.make("LunarLander-v2", render_mode="rgb_array" if args.console else "human")
 
     # Reset the environments
     env_agent.seed(seed=args.seed)
@@ -244,7 +245,7 @@ def main(args, **kwargs):
             obs, reward, done, truncated, info = result
 
         # Handle the display environment
-        env_display.step(action)  # Step in the display environment to show animation
+        env_display.step(action[0])  # Step in the display environment to show animation
 
         if done:
             obs = env_agent.reset()  # Reset the agent's environment
