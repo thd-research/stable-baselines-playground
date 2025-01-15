@@ -41,7 +41,7 @@ class ExperimentConfig:
     console: bool = False
 
     # Enable observation and reward normalization
-    normalize: bool = True
+    normalize: bool = False
 
     # Enable observation and reward normalization for evaluation
     eval_normalize: bool = False
