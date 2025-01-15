@@ -38,7 +38,7 @@ from run.ppo_visacrobot_default.args_parser import parse_args, ExperimentConfig,
 os.makedirs("logs", exist_ok=True)
 
 # Global parameters
-total_timesteps = 1000000
+total_timesteps = 100000
 episode_timesteps = 4694.063219813597
 image_height = 64
 image_width = 64

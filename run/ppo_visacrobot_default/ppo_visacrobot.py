@@ -12,8 +12,8 @@ from stable_baselines3.common.utils import set_random_seed
 from stable_baselines3.common.vec_env import DummyVecEnv, VecTransposeImage
 from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.vec_env import VecFrameStack
-from stable_baselines3.common.callbacks import CheckpointCallback, CallbackList
 from stable_baselines3.common.vec_env import VecNormalize
+from stable_baselines3.common.callbacks import CheckpointCallback, CallbackList
 
 from gymnasium.wrappers import TimeLimit
 
