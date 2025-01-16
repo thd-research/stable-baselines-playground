@@ -33,28 +33,29 @@ from src.utilities.intercept_termination import save_model_and_data, signal_hand
 from src.utilities.mlflow_logger import mlflow_monotoring, get_ml_logger
 
 from run.ppo_visacrobot_default.args_parser import parse_args, ExperimentConfig, PPOHyperparameters
+from src.agent.debug_ppo import DebugPPO
 
 
 os.makedirs("logs", exist_ok=True)
 
 # Global parameters
 total_timesteps = 131072
-episode_timesteps = 1024
+episode_timesteps = 1456
 image_height = 64
 image_width = 64
-save_model_every_steps = 8192 / 4
-n_steps = 1024
+n_steps = 136
 parallel_envs = 8
+save_model_every_steps = episode_timesteps * 8 / parallel_envs
 
 # Define the hyperparameters for PPO
 ppo_hyperparams = {
-    "learning_rate": 4e-4,  # The step size used to update the policy network. Lower values can make learning more stable.
+    "learning_rate": 0.0001509639924034452,  # The step size used to update the policy network. Lower values can make learning more stable.
     "n_steps": n_steps,  # Number of steps to collect before performing a policy update. Larger values may lead to more stable updates.
-    "batch_size": 512,  # Number of samples used in each update. Smaller values can lead to higher variance, while larger values stabilize learning.
-    "gamma": 0.99,  # Discount factor for future rewards. Closer to 1 means the agent places more emphasis on long-term rewards.
-    "gae_lambda": 0.9,  # Generalized Advantage Estimation (GAE) parameter. Balances bias vs. variance; lower values favor bias.
+    "batch_size": n_steps * parallel_envs,  # Number of samples used in each update. Smaller values can lead to higher variance, while larger values stabilize learning.
+    "gamma": 0.92,  # Discount factor for future rewards. Closer to 1 means the agent places more emphasis on long-term rewards.
+    "gae_lambda": 0.85,  # Generalized Advantage Estimation (GAE) parameter. Balances bias vs. variance; lower values favor bias.
     "clip_range": 0.2,  # Clipping range for the PPO objective to prevent large policy updates. Keeps updates more conservative.
-    "n_stacked_frame": 8, # The number of stacked frame feed forward to the policy model
+    "n_stacked_frame": 7, # The number of stacked frame feed forward to the policy model
     # "learning_rate": get_linear_fn(1e-4, 0.5e-5, total_timesteps),  # Linear decay from
 }
 
@@ -126,7 +127,7 @@ def main(args, **kwargs):
         )
 
         # Create the PPO agent using the custom feature extractor
-        model = PPO(
+        model = DebugPPO(
             "CnnPolicy",
             env,
             policy_kwargs=policy_kwargs,
@@ -289,7 +290,8 @@ if __name__ == "__main__":
                             gae_lambda=ppo_hyperparams["gae_lambda"],
                             clip_range=ppo_hyperparams["clip_range"],
                             n_stacked_frame=ppo_hyperparams["n_stacked_frame"],
-                        )
+                        ),
+                        normalize=True
                     ))
 
     main(args)

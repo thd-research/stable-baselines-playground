@@ -30,10 +30,10 @@ def objective(trial):
     learning_rate = trial.suggest_loguniform('learning_rate', 1e-5, 1e-2)
     n_steps = trial.suggest_int('n_steps', 64, 2048, log=True)
     gamma = trial.suggest_uniform('gamma', 0.9, 0.9999)
-    gae_lambda = trial.suggest_uniform('gae_lambda', 0.8, 1.0)
+    gae_lambda = trial.suggest_uniform('gae_lambda', 0.7, 1.0)
     episode_timesteps  = trial.suggest_int('episode_timesteps', 1000, 5000)
     n_stacked_frame  = trial.suggest_int('n_stacked_frame', 4, 10)
-    normalize  = trial.suggest_categorical('normalize', [True, False])
+    normalize  = trial.suggest_categorical('normalize', [True])
     image_height = image_width = 64
     parallel_envs = 8
 
@@ -85,7 +85,7 @@ def objective(trial):
 if __name__ == "__main__":
     # Create and optimize the study
     study = optuna.create_study(direction='maximize')
-    study.optimize(objective, n_trials=50)
+    study.optimize(objective, n_trials=10)
 
     # Print the best hyperparameters
     print("######################################")
