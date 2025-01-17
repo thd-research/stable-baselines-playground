@@ -16,7 +16,7 @@ from gymnasium.wrappers import TimeLimit
 
 from src.model.cnn import CustomCNN
 
-from src.mygym.my_pendulum import PendulumVisual
+from src.mygym.lunar_lander import MyLunarLander
 
 from src.wrapper.pendulum_wrapper import ResizeObservation
 from src.wrapper.pendulum_wrapper import AddTruncatedFlagWrapper
@@ -79,7 +79,10 @@ def main(args, **kwargs):
     # Function to create the base environment
     def make_env(seed):
         def _init():
-            env = gym.make("LunarLander-v2", render_mode="rgb_array")
+            env = MyLunarLander(
+                           render_mode="rgb_array", 
+                           continuous=True
+                           )
             # env = LoggingWrapper(env)  # For debugging: log each step. Comment out by default
             env = VisualWrapper(env)
             env = TimeLimit(env, max_episode_steps=episode_timesteps)

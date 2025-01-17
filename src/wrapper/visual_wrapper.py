@@ -13,7 +13,8 @@ class VisualWrapper(Wrapper):
 
     def step(self, action):
         # Step in the environment
-        _, reward, done, truncated, info = super().step(action if np.dtype(action) != np.float32 else action.astype(float))
+        # _, reward, done, truncated, info = super().step(action)
+        _, reward, done, truncated, info = super().step(action if action.dtype != np.float32 else action.astype(np.float64))
 
         image = self.render()
         return image, reward, done, truncated, info
