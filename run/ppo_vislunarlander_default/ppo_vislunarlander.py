@@ -218,7 +218,10 @@ def main(args, **kwargs):
         env_agent.norm_reward = False  # Disable reward normalization for evaluation
 
     # Environment for visualization (using 'human' mode)
-    env_display = gym.make("LunarLander-v2", render_mode="rgb_array" if args.console else "human")
+    env_display = MyLunarLander(
+                           render_mode="rgb_array" if args.console else "human", 
+                           continuous=True
+                           )
 
     # Reset the environments
     env_agent.seed(seed=args.seed)
