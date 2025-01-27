@@ -31,27 +31,31 @@ from src.utilities.mlflow_logger import mlflow_monotoring, get_ml_logger
 
 from run.ppo_vislunarlander_default.args_parser import parse_args, ExperimentConfig, PPOHyperparameters
 
+import torch
 
+
+torch.cuda.empty_cache() 
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:1024"
 os.makedirs("logs", exist_ok=True)
 
 # Global parameters
-total_timesteps = 131072
-episode_timesteps = 1024
-image_height = 64
-image_width = 64
+total_timesteps = 10000000
+episode_timesteps = 1946
+image_height = 256
+image_width = 256
 save_model_every_steps = 8192 / 4
-n_steps = 1024
-parallel_envs = 8
+n_steps = 512
+parallel_envs = 4
 
 # Define the hyperparameters for PPO
 ppo_hyperparams = {
-    "learning_rate": 4e-4,  # The step size used to update the policy network. Lower values can make learning more stable.
+    "learning_rate": 0.0014389996264962213,  # The step size used to update the policy network. Lower values can make learning more stable.
     "n_steps": n_steps,  # Number of steps to collect before performing a policy update. Larger values may lead to more stable updates.
-    "batch_size": 512,  # Number of samples used in each update. Smaller values can lead to higher variance, while larger values stabilize learning.
-    "gamma": 0.99,  # Discount factor for future rewards. Closer to 1 means the agent places more emphasis on long-term rewards.
-    "gae_lambda": 0.9,  # Generalized Advantage Estimation (GAE) parameter. Balances bias vs. variance; lower values favor bias.
+    "batch_size": n_steps*parallel_envs,  # Number of samples used in each update. Smaller values can lead to higher variance, while larger values stabilize learning.
+    "gamma": 0.9995039560773538,  # Discount factor for future rewards. Closer to 1 means the agent places more emphasis on long-term rewards.
+    "gae_lambda": 0.8736506255939105,  # Generalized Advantage Estimation (GAE) parameter. Balances bias vs. variance; lower values favor bias.
     "clip_range": 0.2,  # Clipping range for the PPO objective to prevent large policy updates. Keeps updates more conservative.
-    "n_stacked_frame": 8, # The number of stacked frame feed forward to the policy model
+    "n_stacked_frame": 4, # The number of stacked frame feed forward to the policy model
     # "learning_rate": get_linear_fn(1e-4, 0.5e-5, total_timesteps),  # Linear decay from
 }
 
@@ -77,7 +81,7 @@ def main(args, **kwargs):
         matplotlib.use("TkAgg")
 
     # Function to create the base environment
-    def make_env(seed):
+    def make_env(seed, truncated=False):
         def _init():
             env = MyLunarLander(
                            render_mode="rgb_array", 
@@ -87,6 +91,10 @@ def main(args, **kwargs):
             env = VisualWrapper(env)
             env = TimeLimit(env, max_episode_steps=episode_timesteps)
             env = ResizeObservation(env, (image_height, image_width))
+
+            if truncated:
+                env = AddTruncatedFlagWrapper(env)
+                
             env.reset(seed=seed)
             return env
         return _init
@@ -132,12 +140,16 @@ def main(args, **kwargs):
             policy_kwargs=policy_kwargs,
             learning_rate=args.ppo.learning_rate,
             n_steps=args.ppo.n_steps,
-            batch_size=args.ppo.batch_size,
+            batch_size=n_steps*parallel_envs,
             gamma=args.ppo.gamma,
             gae_lambda=args.ppo.gae_lambda,
             clip_range=args.ppo.clip_range,
             verbose=1,
         )
+
+        from torchsummary import summary
+
+        summary(model.policy.features_extractor, obs[0].shape)
         
         if kwargs.get("use_mlflow"):    
             model.set_logger(loggers)
@@ -207,7 +219,7 @@ def main(args, **kwargs):
     #                           (image_height, image_width))
     #     )
     # ])
-    env_agent = DummyVecEnv([make_env(0)])
+    env_agent = DummyVecEnv([make_env(0, truncated=True)])
     env_agent = VecFrameStack(env_agent, n_stack=args.ppo.n_stacked_frame)
     env_agent = VecTransposeImage(env_agent)
 
@@ -254,8 +266,9 @@ def main(args, **kwargs):
         env_display.step(action[0])  # Step in the display environment to show animation
 
         if done:
+            env_agent.seed(seed=args.seed)
             obs = env_agent.reset()  # Reset the agent's environment
-            env_display.reset()  # Reset the display environment
+            env_display.reset(seed=args.seed)  # Reset the display environment
 
         accumulated_reward += reward
 

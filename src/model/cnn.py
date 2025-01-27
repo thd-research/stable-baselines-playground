@@ -15,11 +15,13 @@ class CustomCNN(BaseFeaturesExtractor):
         super(CustomCNN, self).__init__(observation_space, features_dim)
 
         self.cnn = nn.Sequential(
-            nn.Conv2d(input_channels, 32, kernel_size=8, stride=4, padding=0),
+            nn.Conv2d(input_channels, 8, kernel_size=3, stride=2, padding='valid'),
             nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size=4, stride=2, padding=0),
+            nn.Conv2d(8, 16, kernel_size=3, stride=2, padding='valid'),
             nn.ReLU(),
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=0),
+            nn.Conv2d(16, 32, kernel_size=3, stride=2, padding='valid'),
+            nn.ReLU(),
+            nn.Conv2d(32, 32, kernel_size=3, stride=2, padding='valid'),
             nn.ReLU(),
             nn.Flatten(),
         )
@@ -76,3 +78,9 @@ class CustomCNN(BaseFeaturesExtractor):
 
         # Return all saved feature maps
         return features
+
+# if __name__ == "__main__":
+#     from torchsummary import summary
+
+#     model = CustomCNN(torch.tensor([1, 12, 256, 256]))
+#     summary(model, (1, 12, 256, 256))
