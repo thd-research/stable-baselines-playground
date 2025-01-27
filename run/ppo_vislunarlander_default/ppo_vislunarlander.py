@@ -14,7 +14,7 @@ from stable_baselines3.common.vec_env import VecNormalize
 
 from gymnasium.wrappers import TimeLimit
 
-from src.model.cnn import CustomCNN
+from src.model.cnn import CustomCNN, CustomCNN_2
 
 from src.mygym.lunar_lander import MyLunarLander
 
@@ -92,9 +92,6 @@ def main(args, **kwargs):
             env = TimeLimit(env, max_episode_steps=episode_timesteps)
             env = ResizeObservation(env, (image_height, image_width))
 
-            if truncated:
-                env = AddTruncatedFlagWrapper(env)
-                
             env.reset(seed=seed)
             return env
         return _init
@@ -129,7 +126,7 @@ def main(args, **kwargs):
 
         # Define the policy_kwargs to use the custom CNN
         policy_kwargs = dict(
-            features_extractor_class=CustomCNN,
+            features_extractor_class=CustomCNN_2,
             features_extractor_kwargs=dict(features_dim=256, num_frames=args.ppo.n_stacked_frame)  # Adjust num_frames as needed
         )
 
@@ -265,11 +262,6 @@ def main(args, **kwargs):
         # Handle the display environment
         env_display.step(action[0])  # Step in the display environment to show animation
 
-        if done:
-            env_agent.seed(seed=args.seed)
-            obs = env_agent.reset()  # Reset the agent's environment
-            env_display.reset(seed=args.seed)  # Reset the display environment
-
         accumulated_reward += reward
 
         info_dict["state"].append(obs)
@@ -277,19 +269,24 @@ def main(args, **kwargs):
         info_dict["reward"].append(reward)
         info_dict["accumulated_reward"].append(accumulated_reward.copy())
 
+        if done:
+            obs = env_agent.reset()  # Reset the agent's environment
+            env_display.reset()  # Reset the display environment
+            break
+
     # Close the environments
     env_agent.close()
     env_display.close()
 
     df = pd.DataFrame(info_dict)
     if args.eval_name:
-        file_name = f"ppo_vislunarlander_eval_{args.eval_name}_seed_{args.seed}.csv"
+        file_name = f"ppo_vislunarlander_eval_{args.eval_name}_seed_{args.seed}.pkl"
     else:
-        file_name = f"ppo_vislunarlander_eval_{args.loadstep}_seed_{args.seed}.csv"
+        file_name = f"ppo_vislunarlander_eval_{args.loadstep}_seed_{args.seed}.pkl"
 
     if args.log:
-        df.to_csv("logs/" + file_name)
-
+        df.to_pickle("logs/" + file_name)
+    
     print("Case:", file_name)
     print(df.drop(columns=["state"]).tail(2))
 
