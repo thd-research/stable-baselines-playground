@@ -107,6 +107,29 @@ class CustomCNN_2(CustomCNN):
             nn.Linear(n_flatten, features_dim),
             nn.ReLU()
         )
+
+class CustomCNN_3(CustomCNN):
+    def __init__(self, observation_space, features_dim: int = 256, num_frames: int = 4):
+        # Get the shape of the input from the observation space
+        input_channels = num_frames * 3  # Assuming RGB images
+        super(CustomCNN, self).__init__(observation_space, features_dim)
+
+        self.cnn = nn.Sequential(
+            nn.Conv2d(input_channels, 8, kernel_size=3, stride=2, padding='valid'),
+            nn.ReLU(),
+            nn.Flatten(),
+        )
+
+        # Compute the size of the output from the CNN
+        with torch.no_grad():
+            dummy_input = torch.zeros(1, input_channels, observation_space.shape[1], observation_space.shape[2])
+            n_flatten = self.cnn(dummy_input).shape[1]
+
+        # Linear layer to map the CNN output to the desired feature size
+        self.linear = nn.Sequential(
+            nn.Linear(n_flatten, features_dim),
+            nn.ReLU()
+        )
 # if __name__ == "__main__":
 #     from torchsummary import summary
 
