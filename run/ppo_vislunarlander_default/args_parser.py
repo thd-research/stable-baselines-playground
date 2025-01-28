@@ -53,7 +53,7 @@ class ExperimentConfig:
     loadstep: int | None = None
 
     # Enable logging of simulation data.
-    log: bool = False
+    log: bool = True
 
     # Enable printing of simulation data.
     debug: bool = False
