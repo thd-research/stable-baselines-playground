@@ -42,14 +42,14 @@ os.makedirs("logs", exist_ok=True)
 # Global parameters
 total_timesteps = 10000000
 episode_timesteps = 1946
-image_height = image_width = 128
+image_height = image_width = 64
 save_model_every_steps = 8192 / 4
 n_steps = 512
 parallel_envs = 4
 
 # Define the hyperparameters for PPO
 ppo_hyperparams = {
-    "learning_rate": 1e-4,  # The step size used to update the policy network. Lower values can make learning more stable.
+    "learning_rate": 1e-3,  # The step size used to update the policy network. Lower values can make learning more stable.
     "n_steps": n_steps,  # Number of steps to collect before performing a policy update. Larger values may lead to more stable updates.
     "batch_size": n_steps*parallel_envs,  # Number of samples used in each update. Smaller values can lead to higher variance, while larger values stabilize learning.
     "gamma": 0.98,  # Discount factor for future rewards. Closer to 1 means the agent places more emphasis on long-term rewards.
@@ -126,15 +126,12 @@ def main(args, **kwargs):
 
         # Define the policy_kwargs to use the custom CNN
         policy_kwargs = dict(
-            features_extractor_class=CustomCNN_2,
-            features_extractor_kwargs=dict(features_dim=256, num_frames=1)  # Adjust num_frames as needed
         )
 
         # Create the PPO agent using the custom feature extractor
         model = RecurrentPPO(
-            "CnnLstmPolicy",
+            "MlpLstmPolicy",
             env,
-            policy_kwargs=policy_kwargs,
             learning_rate=args.ppo.learning_rate,
             n_steps=args.ppo.n_steps,
             batch_size=n_steps*parallel_envs,
@@ -144,9 +141,9 @@ def main(args, **kwargs):
             verbose=1,
         )
 
-        from torchsummary import summary
+        from torchinfo import summary
 
-        summary(model.policy.features_extractor, obs[0].shape)
+        summary(model.policy.features_extractor, obs.shape)
         
         if kwargs.get("use_mlflow"):    
             model.set_logger(loggers)
