@@ -91,11 +91,9 @@ class CustomCNN_2(CustomCNN):
             nn.ReLU(),
             nn.Conv2d(8, 16, kernel_size=3, stride=2, padding='valid'),
             nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2),
-            nn.Conv2d(16, 32, kernel_size=3, stride=2, padding='valid'),
+            nn.Conv2d(16, 16, kernel_size=3, stride=2, padding='valid'),
             nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2),
-
+            nn.MaxPool2d(2),
             nn.Flatten(),
         )
 

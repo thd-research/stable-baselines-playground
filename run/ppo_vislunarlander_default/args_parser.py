@@ -28,6 +28,9 @@ class PPOHyperparameters:
     # The number of stacked frame feed forward to the policy model
     n_stacked_frame: int = 4
 
+    # The number of stacked frame feed forward to the policy model
+    n_epochs: int = 20
+
 
 @dataclass
 class ExperimentConfig:
