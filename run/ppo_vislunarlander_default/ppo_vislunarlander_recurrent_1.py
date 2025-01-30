@@ -119,7 +119,7 @@ def main(args, **kwargs):
 
             # Apply reward and observation normalization if --normalize flag is provided
             if args.normalize:
-                env = VecNormalize(env, norm_obs=False, norm_reward=True, clip_obs=10.0)
+                env = VecNormalize(env, norm_obs=True, norm_reward=True, clip_obs=10.0)
                 print("Reward normalization enabled. Observations are pre-normalized to [0, 1].")
 
             return env
@@ -138,7 +138,7 @@ def main(args, **kwargs):
                                      best_model_save_path=f"./artifacts/best_checkpoint/{folder_name}",
                                      log_path="./logs/", 
                                      eval_freq=save_model_every_steps,
-                                     deterministic=True, render=False)
+                                     deterministic=False, render=False)
 
         # Set random seed for reproducibility
         set_random_seed(args.seed)
@@ -219,6 +219,7 @@ def main(args, **kwargs):
         print("Skipping training. Loading the saved model...")
 
         if args.eval_checkpoint:
+            print("From checkpoint:", args.eval_checkpoint)
             model = PPO.load(args.eval_checkpoint,
                              device=args.ppo.device)
         elif args.loadstep:
@@ -270,7 +271,7 @@ def main(args, **kwargs):
 
     # Run the simulation with the trained agent again run until truncated
     for _ in range(1000):
-        action, _ = model.predict(obs, deterministic=True)
+        action, _ = model.predict(obs)
         # action = env_agent.action_space.sample()  # Generate a random action
 
         # Dynamically handle four or five return values
