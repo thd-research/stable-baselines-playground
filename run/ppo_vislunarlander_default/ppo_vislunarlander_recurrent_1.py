@@ -34,31 +34,27 @@ from src.utilities.mlflow_logger import mlflow_monotoring, get_ml_logger
 from run.ppo_vislunarlander_default.args_parser import parse_args, ExperimentConfig, PPOHyperparameters
 
 import torch
-import mlflow
-from copy import deepcopy
 
-
-mlflow.pytorch.autolog()
 
 torch.cuda.empty_cache() 
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:1024"
 os.makedirs("logs", exist_ok=True)
 
 # Global parameters
-total_timesteps = 1000000
+total_timesteps = 5000000
 episode_timesteps = 256
 image_height = image_width = 64
-n_steps = 512
-parallel_envs = 12
+n_steps = 1024
+parallel_envs = 8
 batchsize = n_steps*parallel_envs
-save_model_every_steps = n_steps
+save_model_every_steps = n_steps * 4
 
 # Define the hyperparameters for PPO
 ppo_hyperparams = {
     # "learning_rate": 1e-4,  # The step size used to update the policy network. Lower values can make learning more stable.
     "n_steps": n_steps,  # Number of steps to collect before performing a policy update. Larger values may lead to more stable updates.
     "batch_size": batchsize,  # Number of samples used in each update. Smaller values can lead to higher variance, while larger values stabilize learning.
-    "gamma": 0.98,  # Discount factor for future rewards. Closer to 1 means the agent places more emphasis on long-term rewards.
+    "gamma": 0.99,  # Discount factor for future rewards. Closer to 1 means the agent places more emphasis on long-term rewards.
     "gae_lambda": 0.95,  # Generalized Advantage Estimation (GAE) parameter. Balances bias vs. variance; lower values favor bias.
     "clip_range": 0.2,  # Clipping range for the PPO objective to prevent large policy updates. Keeps updates more conservative.
     "n_stacked_frame": 4, # The number of stacked frame feed forward to the policy model
@@ -137,10 +133,11 @@ def main(args, **kwargs):
         print("Environment reset successfully.")
 
         # Use deterministic actions for evaluation
+        folder_name = kwargs.get("experiment_name", "default")+ "/" + kwargs.get("run_name", "default")
         eval_callback = EvalCallback(eval_env, 
-                                     best_model_save_path="./artifacts/best_checkpoint/",
+                                     best_model_save_path=f"./artifacts/best_checkpoint/{folder_name}",
                                      log_path="./logs/", 
-                                     eval_freq=save_model_every_steps * 4,
+                                     eval_freq=save_model_every_steps,
                                      deterministic=True, render=False)
 
         # Set random seed for reproducibility

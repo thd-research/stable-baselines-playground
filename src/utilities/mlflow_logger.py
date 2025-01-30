@@ -84,6 +84,6 @@ def mlflow_monotoring(subfix=""):
                             args_dict = vars(args[0])
                             [mlflow.log_param(k, args_dict[k]) for k in args_dict]
                         
-                    return func(*args, **kwargs, use_mlflow=True)
+                    return func(*args, **kwargs, use_mlflow=True, run_name=run_name, experiment_name=experiment_name)
         return inner2
     return inner1
