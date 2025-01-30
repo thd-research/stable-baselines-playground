@@ -55,10 +55,10 @@ ppo_hyperparams = {
     "n_steps": n_steps,  # Number of steps to collect before performing a policy update. Larger values may lead to more stable updates.
     "batch_size": batchsize,  # Number of samples used in each update. Smaller values can lead to higher variance, while larger values stabilize learning.
     "gamma": 0.99,  # Discount factor for future rewards. Closer to 1 means the agent places more emphasis on long-term rewards.
-    "gae_lambda": 0.95,  # Generalized Advantage Estimation (GAE) parameter. Balances bias vs. variance; lower values favor bias.
+    "gae_lambda": 0.9,  # Generalized Advantage Estimation (GAE) parameter. Balances bias vs. variance; lower values favor bias.
     "clip_range": 0.2,  # Clipping range for the PPO objective to prevent large policy updates. Keeps updates more conservative.
     "n_stacked_frame": 4, # The number of stacked frame feed forward to the policy model
-    "learning_rate": get_linear_fn(1e-4, 5e-6, total_timesteps),  # Linear decay from
+    "learning_rate": get_linear_fn(1e-4, 5e-5, total_timesteps),  # Linear decay from
 }
 
 # Global variables for graceful termination
@@ -119,7 +119,7 @@ def main(args, **kwargs):
 
             # Apply reward and observation normalization if --normalize flag is provided
             if args.normalize:
-                env = VecNormalize(env, norm_obs=True, norm_reward=True, clip_obs=10.0)
+                env = VecNormalize(env, norm_obs=False, norm_reward=True, clip_obs=10.0)
                 print("Reward normalization enabled. Observations are pre-normalized to [0, 1].")
 
             return env
