@@ -20,7 +20,7 @@ from sb3_contrib import RecurrentPPO
 
 from src.mygym.lunar_lander import MyLunarLander
 
-from src.wrapper.pendulum_wrapper import ResizeObservation
+from src.wrapper.pendulum_wrapper import ResizeObservation, CropObservation
 from src.wrapper.pendulum_wrapper import AddTruncatedFlagWrapper
 from src.wrapper.visual_wrapper import VisualWrapper
 
@@ -41,24 +41,25 @@ os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:1024"
 os.makedirs("logs", exist_ok=True)
 
 # Global parameters
-total_timesteps = 5000000
-episode_timesteps = 256
+total_timesteps = 10000000
+episode_timesteps = 2048
 image_height = image_width = 64
-n_steps = 1024
-parallel_envs = 8
+width_center = 15
+n_steps = 256
+parallel_envs = 16
 batchsize = n_steps*parallel_envs
 save_model_every_steps = n_steps * 4
 
 # Define the hyperparameters for PPO
 ppo_hyperparams = {
-    # "learning_rate": 1e-4,  # The step size used to update the policy network. Lower values can make learning more stable.
+    "learning_rate": 1e-4,  # The step size used to update the policy network. Lower values can make learning more stable.
     "n_steps": n_steps,  # Number of steps to collect before performing a policy update. Larger values may lead to more stable updates.
     "batch_size": batchsize,  # Number of samples used in each update. Smaller values can lead to higher variance, while larger values stabilize learning.
     "gamma": 0.99,  # Discount factor for future rewards. Closer to 1 means the agent places more emphasis on long-term rewards.
     "gae_lambda": 0.9,  # Generalized Advantage Estimation (GAE) parameter. Balances bias vs. variance; lower values favor bias.
     "clip_range": 0.2,  # Clipping range for the PPO objective to prevent large policy updates. Keeps updates more conservative.
     "n_stacked_frame": 4, # The number of stacked frame feed forward to the policy model
-    "learning_rate": get_linear_fn(1e-4, 5e-5, total_timesteps),  # Linear decay from
+    # "learning_rate": get_linear_fn(1e-4, 5e-5, total_timesteps),  # Linear decay from
 }
 
 # Global variables for graceful termination
@@ -94,7 +95,8 @@ def main(args, **kwargs):
             env = Monitor(env)
             env = TimeLimit(env, max_episode_steps=episode_timesteps)
             env = ResizeObservation(env, (image_height, image_width))
-
+            env = CropObservation(env, (image_height, image_width),
+                                  width_center=width_center)
             env.reset(seed=seed)
             return env
         return _init
