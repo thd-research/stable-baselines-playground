@@ -29,7 +29,9 @@ class PPOHyperparameters:
     n_stacked_frame: int = 4
 
     # The number of stacked frame feed forward to the policy model
-    n_epochs: int = 20
+    n_epochs: int = 10
+
+    device: str = "auto"
 
 
 @dataclass
