@@ -5,12 +5,13 @@ import signal
 import gymnasium as gym
 
 from stable_baselines3 import PPO
-from stable_baselines3.common.utils import set_random_seed
+from stable_baselines3.common.utils import set_random_seed, get_linear_fn
 from stable_baselines3.common.vec_env import DummyVecEnv, VecTransposeImage
 from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.vec_env import VecFrameStack
-from stable_baselines3.common.callbacks import CheckpointCallback, CallbackList
+from stable_baselines3.common.callbacks import CheckpointCallback, CallbackList, EvalCallback
 from stable_baselines3.common.vec_env import VecNormalize
+from stable_baselines3.common.monitor import Monitor
 
 from gymnasium.wrappers import TimeLimit
 
@@ -21,7 +22,7 @@ from src.mygym.lunar_lander import MyLunarLander
 
 from src.wrapper.pendulum_wrapper import ResizeObservation
 from src.wrapper.pendulum_wrapper import AddTruncatedFlagWrapper
-from src.wrapper.visual_wrapper import VisualWrapper
+from src.wrapper.visual_wrapper import VisualWrapper, CropObservation, LunarLanderRewardEngineering
 
 from src.callback.plotting_callback import PlottingCallback
 from src.callback.grad_monitor_callback import GradientMonitorCallback
@@ -41,22 +42,24 @@ os.makedirs("logs", exist_ok=True)
 
 # Global parameters
 total_timesteps = 10000000
-episode_timesteps = 1946
-image_height = image_width = 64
-save_model_every_steps = 8192 / 4
-n_steps = 512
-parallel_envs = 4
+episode_timesteps = 2048
+image_height = image_width = 200
+width_center = 40
+n_steps = 256
+parallel_envs = 16
+batchsize = n_steps*parallel_envs
+save_model_every_steps = n_steps * 4
 
 # Define the hyperparameters for PPO
 ppo_hyperparams = {
-    "learning_rate": 1e-3,  # The step size used to update the policy network. Lower values can make learning more stable.
+    "learning_rate": 1e-4,  # The step size used to update the policy network. Lower values can make learning more stable.
     "n_steps": n_steps,  # Number of steps to collect before performing a policy update. Larger values may lead to more stable updates.
-    "batch_size": n_steps*parallel_envs,  # Number of samples used in each update. Smaller values can lead to higher variance, while larger values stabilize learning.
-    "gamma": 0.98,  # Discount factor for future rewards. Closer to 1 means the agent places more emphasis on long-term rewards.
+    "batch_size": batchsize,  # Number of samples used in each update. Smaller values can lead to higher variance, while larger values stabilize learning.
+    "gamma": 0.99,  # Discount factor for future rewards. Closer to 1 means the agent places more emphasis on long-term rewards.
     "gae_lambda": 0.8,  # Generalized Advantage Estimation (GAE) parameter. Balances bias vs. variance; lower values favor bias.
     "clip_range": 0.2,  # Clipping range for the PPO objective to prevent large policy updates. Keeps updates more conservative.
     "n_stacked_frame": 4, # The number of stacked frame feed forward to the policy model
-    # "learning_rate": get_linear_fn(1e-4, 0.5e-5, total_timesteps),  # Linear decay from
+    # "learning_rate": get_linear_fn(1e-4, 5e-5, total_timesteps),  # Linear decay from
 }
 
 # Global variables for graceful termination
@@ -89,37 +92,56 @@ def main(args, **kwargs):
                            )
             # env = LoggingWrapper(env)  # For debugging: log each step. Comment out by default
             env = VisualWrapper(env)
+            env = Monitor(env)
             env = TimeLimit(env, max_episode_steps=episode_timesteps)
             env = ResizeObservation(env, (image_height, image_width))
-
+            env = CropObservation(env, (image_height, image_width),
+                                  width_center=width_center)
+            env = LunarLanderRewardEngineering(env)
             env.reset(seed=seed)
             return env
         return _init
     
     # Train the model if --notrain flag is not provided
     if not args.notrain:
-        # Environment setup based on --single-thread flag
-        if args.single_thread:
-            print("Using single-threaded environment (DummyVecEnv).")
-            env = DummyVecEnv([make_env(0)])
-        else:
-            print("Using multi-threaded environment (SubprocVecEnv).")
-            env = SubprocVecEnv([make_env(seed) for seed in range(parallel_envs)])
 
-        # Apply VecFrameStack to stack frames along the channel dimension
-        # env = VecFrameStack(env, n_stack=args.ppo.n_stacked_frame)
+        def init_env(args):
+            # Environment setup based on --single-thread flag
+            if args.single_thread:
+                print("Using single-threaded environment (DummyVecEnv).")
+                env = DummyVecEnv([make_env(0)])
+            else:
+                print("Using multi-threaded environment (SubprocVecEnv).")
+                env = SubprocVecEnv([make_env(seed) for seed in range(parallel_envs)])
 
-        # Apply VecTransposeImage
-        env = VecTransposeImage(env)
+            # Apply VecFrameStack to stack frames along the channel dimension
+            # env = VecFrameStack(env, n_stack=args.ppo.n_stacked_frame)
 
-        # Apply reward and observation normalization if --normalize flag is provided
-        if args.normalize:
-            env = VecNormalize(env, norm_obs=False, norm_reward=True, clip_obs=10.0)
-            print("Reward normalization enabled. Observations are pre-normalized to [0, 1].")
+            # Apply VecTransposeImage
+            env = VecTransposeImage(env)
+
+            # Apply reward and observation normalization if --normalize flag is provided
+            if args.normalize:
+                env = VecNormalize(env, norm_obs=False, norm_reward=True, clip_obs=10.0)
+                print("Reward normalization enabled. Observations are pre-normalized to [0, 1].")
+
+            return env
+        
+        env = init_env(args)
+        # Separate evaluation env
+        eval_env = init_env(args)
 
         env.seed(seed=args.seed)
         obs = env.reset()
         print("Environment reset successfully.")
+
+        # Use deterministic actions for evaluation
+        folder_name = kwargs.get("experiment_name", "default")+ "/" + kwargs.get("run_name", "default")
+        eval_callback = EvalCallback(eval_env, 
+                                     best_model_save_path=f"./artifacts/best_checkpoint/{folder_name}",
+                                     log_path="./logs/", 
+                                     eval_freq=save_model_every_steps,
+                                     deterministic=False, render=False)
 
         # Set random seed for reproducibility
         set_random_seed(args.seed)
@@ -139,6 +161,8 @@ def main(args, **kwargs):
             gae_lambda=args.ppo.gae_lambda,
             clip_range=args.ppo.clip_range,
             verbose=1,
+            device=args.ppo.device,
+            n_epochs=args.ppo.n_epochs
         )
 
         from torchinfo import summary
@@ -172,7 +196,8 @@ def main(args, **kwargs):
         callback = CallbackList([
             checkpoint_callback,
             plotting_callback,
-            gradient_monitor_callback
+            gradient_monitor_callback,
+            eval_callback
             ])
 
         print("Starting training ...")
@@ -197,11 +222,15 @@ def main(args, **kwargs):
         print("Skipping training. Loading the saved model...")
 
         if args.eval_checkpoint:
-            model = PPO.load(args.eval_checkpoint)
+            print("From checkpoint:", args.eval_checkpoint)
+            model = PPO.load(args.eval_checkpoint,
+                             device=args.ppo.device)
         elif args.loadstep:
-            model = PPO.load(f"./artifacts/checkpoints/ppo_vislunarlander_{args.loadstep}_steps")
+            model = PPO.load(f"./artifacts/checkpoints/ppo_vislunarlander_{args.loadstep}_steps",
+                             device=args.ppo.device)
         else:
-            model = PPO.load("./artifacts/checkpoints/ppo_vislunarlander")
+            model = PPO.load("./artifacts/checkpoints/ppo_vislunarlander",
+                             device=args.ppo.device)
 
     # Visual evaluation after training or loading
     print("Starting evaluation...")
@@ -286,6 +315,7 @@ def main(args, **kwargs):
     
     print("Case:", file_name)
     print(df.drop(columns=["state"]).tail(2))
+
 
 if __name__ == "__main__":
     # Parse command-line arguments

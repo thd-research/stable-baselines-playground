@@ -66,25 +66,3 @@ class ResizeObservation(ObservationWrapper):
 
         return resized_observation
     
-
-class CropObservation(ObservationWrapper):
-    def __init__(self, env, shape, width_center):
-        super(CropObservation, self).__init__(env)
-        self.shape = shape
-        self.width_center = width_center
-        self.left_edge = int(self.shape[1]/2) - self.width_center
-        self.right_edge = int(self.shape[1]/2) + self.width_center
-        self.observation_space = gym.spaces.Box(
-            low=0, high=255, shape=(shape[0], int(width_center*2), 3), dtype=np.uint8
-        )
-
-    def observation(self, observation):
-        # Debug: Check if the observation is empty or not
-        if observation is None or observation.size == 0:
-            print("Error: Observation is empty or not properly generated.")
-            raise ValueError("Observation is empty or not properly generated.")
-
-        # Resize the observation using OpenCV
-        cropped_observation = observation[:, self.left_edge:self.right_edge, :]
-
-        return cropped_observation
