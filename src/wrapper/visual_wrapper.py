@@ -49,9 +49,9 @@ class LunarLanderRewardEngineering(Wrapper):
         # _, reward, done, truncated, info = super().step(action)
         image_obs, reward, done, truncated, info = super().step(action if action.dtype != np.float32 else action.astype(np.float64))
 
-        if image_obs.shape[1] == 200 and image_obs.shape[2] == 80:
+        if image_obs.shape[0] == 200 and image_obs.shape[1] == 80:
             count = np.count_nonzero(np.isclose(self.init_img, image_obs, atol=7))
-            if 47760 < count < 47660:
+            if 47660 < count < 47760:
                 reward = -1
 
         return image_obs, reward, done, truncated, info
