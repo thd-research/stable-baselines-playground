@@ -20,9 +20,9 @@ from sb3_contrib import RecurrentPPO
 
 from src.mygym.lunar_lander import MyLunarLander
 
-from src.wrapper.pendulum_wrapper import ResizeObservation, CropObservation
+from src.wrapper.pendulum_wrapper import ResizeObservation
 from src.wrapper.pendulum_wrapper import AddTruncatedFlagWrapper
-from src.wrapper.visual_wrapper import VisualWrapper
+from src.wrapper.visual_wrapper import VisualWrapper, CropObservation, LunarLanderRewardEngineering
 
 from src.callback.plotting_callback import PlottingCallback
 from src.callback.grad_monitor_callback import GradientMonitorCallback
@@ -45,9 +45,10 @@ total_timesteps = 10000000
 episode_timesteps = 2048
 image_height = image_width = 64
 width_center = 15
-n_steps = 256
+n_steps = 1024
 parallel_envs = 16
-batchsize = n_steps*parallel_envs
+# batchsize = n_steps*parallel_envs
+batchsize = 2048
 save_model_every_steps = n_steps * 4
 
 # Define the hyperparameters for PPO
@@ -56,7 +57,7 @@ ppo_hyperparams = {
     "n_steps": n_steps,  # Number of steps to collect before performing a policy update. Larger values may lead to more stable updates.
     "batch_size": batchsize,  # Number of samples used in each update. Smaller values can lead to higher variance, while larger values stabilize learning.
     "gamma": 0.99,  # Discount factor for future rewards. Closer to 1 means the agent places more emphasis on long-term rewards.
-    "gae_lambda": 0.9,  # Generalized Advantage Estimation (GAE) parameter. Balances bias vs. variance; lower values favor bias.
+    "gae_lambda": 0.8,  # Generalized Advantage Estimation (GAE) parameter. Balances bias vs. variance; lower values favor bias.
     "clip_range": 0.2,  # Clipping range for the PPO objective to prevent large policy updates. Keeps updates more conservative.
     "n_stacked_frame": 4, # The number of stacked frame feed forward to the policy model
     # "learning_rate": get_linear_fn(1e-4, 5e-5, total_timesteps),  # Linear decay from
