@@ -6,21 +6,15 @@ import gymnasium as gym
 
 from stable_baselines3 import PPO
 from stable_baselines3.common.utils import set_random_seed
-from stable_baselines3.common.vec_env import DummyVecEnv, VecTransposeImage
+from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.common.vec_env import SubprocVecEnv
-from stable_baselines3.common.vec_env import VecFrameStack
 from stable_baselines3.common.callbacks import CheckpointCallback, CallbackList
 from stable_baselines3.common.vec_env import VecNormalize
 
 from gymnasium.wrappers import TimeLimit
 
-from src.model.cnn import CustomCNN, CustomCNN_2
-
 from src.mygym.lunar_lander import MyLunarLander
 
-from src.wrapper.pendulum_wrapper import ResizeObservation
-from src.wrapper.pendulum_wrapper import AddTruncatedFlagWrapper
-from src.wrapper.visual_wrapper import VisualWrapper
 
 from src.callback.plotting_callback import PlottingCallback
 from src.callback.grad_monitor_callback import GradientMonitorCallback
@@ -39,10 +33,9 @@ os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:1024"
 os.makedirs("logs", exist_ok=True)
 
 # Global parameters
-total_timesteps = 10000000
-episode_timesteps = 512
+total_timesteps = 1000000
 parallel_envs = 4
-n_steps = 512 * parallel_envs
+n_steps = 256 * parallel_envs
 save_model_every_steps = n_steps
 
 # Define the hyperparameters for PPO
@@ -85,7 +78,7 @@ def main(args, **kwargs):
                            continuous=True
                            )
             # env = LoggingWrapper(env)  # For debugging: log each step. Comment out by default
-            env = TimeLimit(env, max_episode_steps=episode_timesteps)
+            # env = TimeLimit(env, max_episode_steps=episode_timesteps)
 
             env.reset(seed=seed)
             return env
@@ -115,6 +108,7 @@ def main(args, **kwargs):
 
         # Define the policy_kwargs to use the custom CNN
         policy_kwargs = dict(
+            net_arch=dict(pi=[128,128], vf=[128,128])
         )
 
         # Create the PPO agent using the custom feature extractor
@@ -129,6 +123,7 @@ def main(args, **kwargs):
             gae_lambda=args.ppo.gae_lambda,
             clip_range=args.ppo.clip_range,
             verbose=1,
+            ent_coef=0.01
         )
 
         # from torchsummary import summary
@@ -144,7 +139,7 @@ def main(args, **kwargs):
         checkpoint_callback = CheckpointCallback(
             save_freq=save_model_every_steps,  # Save the model periodically
             save_path="./artifacts/checkpoints",  # Directory to save the model
-            name_prefix="ppo_vislunarlander"
+            name_prefix="ppo_lunarlander"
         )
 
         # Instantiate a plotting callback to show the live learning curve
