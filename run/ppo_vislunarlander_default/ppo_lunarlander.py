@@ -10,6 +10,7 @@ from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.callbacks import CheckpointCallback, CallbackList, EvalCallback
 from stable_baselines3.common.vec_env import VecNormalize
+from stable_baselines3.common.monitor import Monitor
 
 from gymnasium.wrappers import TimeLimit
 
@@ -79,6 +80,7 @@ def main(args, **kwargs):
                            render_mode="rgb_array", 
                            continuous=True
                            )
+            env = Monitor(env)
             # env = LoggingWrapper(env)  # For debugging: log each step. Comment out by default
             # env = TimeLimit(env, max_episode_steps=episode_timesteps)
 
@@ -246,7 +248,7 @@ def main(args, **kwargs):
     accumulated_reward = 0
 
     # Run the simulation with the trained agent again run until truncated
-    for _ in range(1500):
+    for _ in range(3000):
         action, _ = model.predict(obs)
         # action = env_agent.action_space.sample()  # Generate a random action
 
