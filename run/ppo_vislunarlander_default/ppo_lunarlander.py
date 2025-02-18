@@ -33,7 +33,8 @@ os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:1024"
 os.makedirs("logs", exist_ok=True)
 
 # Global parameters
-total_timesteps = 10000000
+# episode_timesteps=3000
+total_timesteps = 1000000
 parallel_envs = 4
 n_steps = 512
 save_model_every_steps = n_steps
@@ -42,9 +43,9 @@ save_model_every_steps = n_steps
 ppo_hyperparams = {
     "learning_rate": 5e-4,  # The step size used to update the policy network. Lower values can make learning more stable.
     "n_steps": n_steps,  # Number of steps to collect before performing a policy update. Larger values may lead to more stable updates.
-    "batch_size": n_steps*parallel_envs,  # Number of samples used in each update. Smaller values can lead to higher variance, while larger values stabilize learning.
-    "gamma": 0.95,  # Discount factor for future rewards. Closer to 1 means the agent places more emphasis on long-term rewards.
-    "gae_lambda": 0.9,  # Generalized Advantage Estimation (GAE) parameter. Balances bias vs. variance; lower values favor bias.
+    "batch_size": 64,  # Number of samples used in each update. Smaller values can lead to higher variance, while larger values stabilize learning.
+    "gamma": 0.99,  # Discount factor for future rewards. Closer to 1 means the agent places more emphasis on long-term rewards.
+    "gae_lambda": 0.87,  # Generalized Advantage Estimation (GAE) parameter. Balances bias vs. variance; lower values favor bias.
     "clip_range": 0.2,  # Clipping range for the PPO objective to prevent large policy updates. Keeps updates more conservative.
     # "learning_rate": get_linear_fn(1e-4, 0.5e-5, total_timesteps),  # Linear decay from
 }
@@ -227,7 +228,7 @@ def main(args, **kwargs):
     accumulated_reward = 0
 
     # Run the simulation with the trained agent again run until truncated
-    for _ in range(1000):
+    for _ in range(1500):
         action, _ = model.predict(obs)
         # action = env_agent.action_space.sample()  # Generate a random action
 
