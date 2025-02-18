@@ -8,7 +8,7 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.utils import set_random_seed
 from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.common.vec_env import SubprocVecEnv
-from stable_baselines3.common.callbacks import CheckpointCallback, CallbackList
+from stable_baselines3.common.callbacks import CheckpointCallback, CallbackList, EvalCallback
 from stable_baselines3.common.vec_env import VecNormalize
 
 from gymnasium.wrappers import TimeLimit
@@ -88,22 +88,39 @@ def main(args, **kwargs):
     
     # Train the model if --notrain flag is not provided
     if not args.notrain:
-        # Environment setup based on --single-thread flag
-        if args.single_thread:
-            print("Using single-threaded environment (DummyVecEnv).")
-            env = DummyVecEnv([make_env(0)])
-        else:
-            print("Using multi-threaded environment (SubprocVecEnv).")
-            env = SubprocVecEnv([make_env(seed) for seed in range(parallel_envs)])
+        def init_env(args):
+            # Environment setup based on --single-thread flag
+            if args.single_thread:
+                print("Using single-threaded environment (DummyVecEnv).")
+                env = DummyVecEnv([make_env(0)])
+            else:
+                print("Using multi-threaded environment (SubprocVecEnv).")
+                env = SubprocVecEnv([make_env(seed) for seed in range(parallel_envs)])
 
-        # Apply reward and observation normalization if --normalize flag is provided
-        if args.normalize:
-            env = VecNormalize(env, norm_obs=False, norm_reward=True, clip_obs=10.0)
-            print("Reward normalization enabled. Observations are pre-normalized to [0, 1].")
+            # Apply reward and observation normalization if --normalize flag is provided
+            if args.normalize:
+                env = VecNormalize(env, norm_obs=False, norm_reward=True, clip_obs=10.0)
+                print("Reward normalization enabled. Observations are pre-normalized to [0, 1].")
+
+            return env
+        
+        env = init_env(args)
+
+        # Separate evaluation env
+        eval_env = init_env(args)
 
         env.seed(seed=args.seed)
         obs = env.reset()
         print("Environment reset successfully.")
+
+
+        # Use deterministic actions for evaluation
+        folder_name = kwargs.get("experiment_name", "default")+ "/" + kwargs.get("run_name", "default")
+        eval_callback = EvalCallback(eval_env, 
+                                     best_model_save_path=f"./artifacts/best_checkpoint/{folder_name}",
+                                     log_path="./logs/", 
+                                     eval_freq=save_model_every_steps,
+                                     deterministic=False, render=False)
 
         # Set random seed for reproducibility
         set_random_seed(args.seed)
@@ -161,7 +178,8 @@ def main(args, **kwargs):
         callback = CallbackList([
             checkpoint_callback,
             plotting_callback,
-            gradient_monitor_callback
+            gradient_monitor_callback,
+            eval_callback
             ])
 
         print("Starting training ...")
