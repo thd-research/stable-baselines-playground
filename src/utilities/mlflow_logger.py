@@ -58,7 +58,7 @@ def mlflow_monotoring(subfix=""):
             if len(args) == 1 and \
                     hasattr(args[0], "notrain") and \
                     args[0].notrain:
-                return func(*args, **kwargs, use_mlflow=True)
+                return func(*args, **kwargs, use_mlflow=True, experiment_name=experiment_name)
             else:
                 if mlflow.active_run() is not None:
                     print("There is an active run.")

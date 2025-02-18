@@ -109,7 +109,6 @@ def main(args, **kwargs):
 
         # Define the policy_kwargs to use the custom CNN
         policy_kwargs = dict(
-            activation_fn=torch.nn.PReLU,
             net_arch=dict(pi=[128,128], vf=[128,128])
         )
 
@@ -191,7 +190,7 @@ def main(args, **kwargs):
             model = PPO.load(f"./artifacts/checkpoints/{experiment_name}_{args.loadstep}_steps",
                              device=args.ppo.device,)
         else:
-            model = PPO.load("./artifacts/checkpoints/" + experiment_name,
+            model = PPO.load(f"./artifacts/checkpoints/{experiment_name}",
                              device=args.ppo.device,)
 
     # Visual evaluation after training or loading
