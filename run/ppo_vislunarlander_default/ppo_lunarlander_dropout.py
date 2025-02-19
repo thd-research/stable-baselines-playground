@@ -66,6 +66,8 @@ def main(args, **kwargs):
     signal.signal(signal.SIGTERM, lambda sig, frame: signal_handler(sig, frame))
     
     experiment_name = kwargs.get("experiment_name")
+    run_name = kwargs.get("run_name")
+
     if kwargs.get("use_mlflow"):
         loggers = get_ml_logger(args.debug)
     
@@ -234,7 +236,13 @@ def main(args, **kwargs):
                            render_mode="rgb_array" if args.console else "human", 
                            continuous=True
                            )
-
+    
+    if args.console and args.record:
+        video_dir = f"./artifacts/eval_video/{experiment_name}/{run_name}"
+        env_display = gym.wrappers.RecordVideo(env_display, 
+                                               video_dir,
+                                               episode_trigger=lambda x: x >= 0)
+    
     # Reset the environments
     env_agent.seed(seed=args.seed)
     
