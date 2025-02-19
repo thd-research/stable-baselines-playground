@@ -36,7 +36,7 @@ os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:1024"
 os.makedirs("logs", exist_ok=True)
 
 # Global parameters
-# episode_timesteps=3000
+episode_timesteps=6000
 total_timesteps = 1000000
 parallel_envs = 4
 n_steps = 512
@@ -46,7 +46,7 @@ save_model_every_steps = n_steps
 ppo_hyperparams = {
     "learning_rate": 5e-4,  # The step size used to update the policy network. Lower values can make learning more stable.
     "n_steps": n_steps,  # Number of steps to collect before performing a policy update. Larger values may lead to more stable updates.
-    "batch_size": 64,  # Number of samples used in each update. Smaller values can lead to higher variance, while larger values stabilize learning.
+    "batch_size": n_steps * parallel_envs,  # Number of samples used in each update. Smaller values can lead to higher variance, while larger values stabilize learning.
     "gamma": 0.99,  # Discount factor for future rewards. Closer to 1 means the agent places more emphasis on long-term rewards.
     "gae_lambda": 1,  # Generalized Advantage Estimation (GAE) parameter. Balances bias vs. variance; lower values favor bias.
     "clip_range": 0.2,  # Clipping range for the PPO objective to prevent large policy updates. Keeps updates more conservative.
@@ -84,7 +84,7 @@ def main(args, **kwargs):
                            )
             env = Monitor(env)
             # env = LoggingWrapper(env)  # For debugging: log each step. Comment out by default
-            # env = TimeLimit(env, max_episode_steps=episode_timesteps)
+            env = TimeLimit(env, max_episode_steps=episode_timesteps)
 
             env.reset(seed=seed)
             return env
