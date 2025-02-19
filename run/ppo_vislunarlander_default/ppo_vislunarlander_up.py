@@ -8,6 +8,8 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.utils import set_random_seed
 from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.common.vec_env import SubprocVecEnv
+from stable_baselines3.common.vec_env import VecFrameStack, VecTransposeImage
+
 from stable_baselines3.common.callbacks import CheckpointCallback, CallbackList, EvalCallback
 from stable_baselines3.common.vec_env import VecNormalize
 from stable_baselines3.common.monitor import Monitor
@@ -15,7 +17,10 @@ from stable_baselines3.common.monitor import Monitor
 from gymnasium.wrappers import TimeLimit
 
 from src.mygym.lunar_lander import MyLunarLander
+from src.model.cnn import CustomCNN, CustomCNN_2
 
+from src.wrapper.pendulum_wrapper import ResizeObservation
+from src.wrapper.visual_wrapper import VisualWrapper
 
 from src.callback.plotting_callback import PlottingCallback
 from src.callback.grad_monitor_callback import GradientMonitorCallback
@@ -23,8 +28,6 @@ from src.callback.grad_monitor_callback import GradientMonitorCallback
 from src.utilities.clean_cnn_outputs import clean_cnn_outputs
 from src.utilities.intercept_termination import save_model_and_data, signal_handler
 from src.utilities.mlflow_logger import mlflow_monotoring, get_ml_logger
-
-from src.model.on_policy import CustomActorCriticPolicy
 
 from run.ppo_vislunarlander_default.args_parser import parse_args, ExperimentConfig, PPOHyperparameters
 
@@ -39,8 +42,11 @@ os.makedirs("logs", exist_ok=True)
 episode_timesteps=6000
 total_timesteps = 1000000
 parallel_envs = 4
-n_steps = 1024
+n_steps = 512
 save_model_every_steps = n_steps
+
+image_height = 256
+image_width = 256
 
 # Define the hyperparameters for PPO
 ppo_hyperparams = {
@@ -49,6 +55,7 @@ ppo_hyperparams = {
     "batch_size": n_steps * parallel_envs,  # Number of samples used in each update. Smaller values can lead to higher variance, while larger values stabilize learning.
     "gamma": 0.99,  # Discount factor for future rewards. Closer to 1 means the agent places more emphasis on long-term rewards.
     "gae_lambda": 1,  # Generalized Advantage Estimation (GAE) parameter. Balances bias vs. variance; lower values favor bias.
+    "n_stacked_frame": 4, # The number of stacked frame feed forward to the policy model
     "clip_range": 0.2,  # Clipping range for the PPO objective to prevent large policy updates. Keeps updates more conservative.
     # "learning_rate": get_linear_fn(1e-4, 0.5e-5, total_timesteps),  # Linear decay from
 }
@@ -83,6 +90,8 @@ def main(args, **kwargs):
                            continuous=True
                            )
             env = Monitor(env)
+            env = VisualWrapper(env)
+            env = ResizeObservation(env, (image_height, image_width))
             # env = LoggingWrapper(env)  # For debugging: log each step. Comment out by default
             env = TimeLimit(env, max_episode_steps=episode_timesteps)
 
@@ -100,6 +109,12 @@ def main(args, **kwargs):
             else:
                 print("Using multi-threaded environment (SubprocVecEnv).")
                 env = SubprocVecEnv([make_env(seed) for seed in range(parallel_envs)])
+
+            # Apply VecFrameStack to stack frames along the channel dimension
+            env = VecFrameStack(env, n_stack=args.ppo.n_stacked_frame)
+
+            # Apply VecTransposeImage
+            env = VecTransposeImage(env)
 
             # Apply reward and observation normalization if --normalize flag is provided
             if args.normalize:
@@ -132,13 +147,14 @@ def main(args, **kwargs):
         # Define the policy_kwargs to use the custom CNN
         policy_kwargs = dict(
             activation_fn=torch.nn.PReLU,
-            net_arch=dict(pi=[64,128], vf=[64,128]),
-            dropout=0.2
+            net_arch=dict(pi=[128,128], vf=[128,128]),
+            features_extractor_class=CustomCNN_2,
+            features_extractor_kwargs=dict(features_dim=256, num_frames=args.ppo.n_stacked_frame)  # Adjust num_frames as needed
         )
 
         # Create the PPO agent using the custom feature extractor
         model = PPO(
-            CustomActorCriticPolicy,
+            "CnnPolicy",
             env,
             policy_kwargs=policy_kwargs,
             learning_rate=args.ppo.learning_rate,
@@ -222,6 +238,8 @@ def main(args, **kwargs):
     print("Starting evaluation...")
 
     env_agent = DummyVecEnv([make_env(0, truncated=True)])
+    env_agent = VecFrameStack(env_agent, n_stack=args.ppo.n_stacked_frame)
+    env_agent = VecTransposeImage(env_agent)
 
     # Load the normalization statistics if --normalize is used
     if args.eval_normalize:
