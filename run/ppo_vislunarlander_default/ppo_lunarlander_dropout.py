@@ -149,7 +149,7 @@ def main(args, **kwargs):
             gae_lambda=args.ppo.gae_lambda,
             clip_range=args.ppo.clip_range,
             verbose=1,
-            ent_coef=0.01,
+            ent_coef=0.05,
             device=args.ppo.device,
         )
 
