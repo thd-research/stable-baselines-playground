@@ -58,7 +58,10 @@ def mlflow_monotoring(subfix=""):
             if len(args) == 1 and \
                     hasattr(args[0], "notrain") and \
                     args[0].notrain:
-                return func(*args, **kwargs, use_mlflow=True, experiment_name=experiment_name)
+                return func(*args, **kwargs, 
+                            use_mlflow=True, 
+                            run_name=run_name, 
+                            experiment_name=experiment_name)
             else:
                 if mlflow.active_run() is not None:
                     print("There is an active run.")
@@ -84,6 +87,9 @@ def mlflow_monotoring(subfix=""):
                             args_dict = vars(args[0])
                             [mlflow.log_param(k, args_dict[k]) for k in args_dict]
                         
-                    return func(*args, **kwargs, use_mlflow=True, run_name=run_name, experiment_name=experiment_name)
+                    return func(*args, **kwargs, 
+                                use_mlflow=True, 
+                                run_name=run_name, 
+                                experiment_name=experiment_name)
         return inner2
     return inner1
