@@ -40,8 +40,8 @@ os.makedirs("logs", exist_ok=True)
 
 # Global parameters
 episode_timesteps=6000
-total_timesteps = 1000000
-parallel_envs = 4
+total_timesteps = 2000000
+parallel_envs = 6
 n_steps = 512
 save_model_every_steps = n_steps
 
