@@ -33,6 +33,12 @@ class PPOHyperparameters:
 
     device: str = "auto"
 
+    # Whether to use generalized State Dependent Exploration (gSDE)
+    use_sde: bool = False
+
+    # Sample a new noise matrix every n steps when using gSDE
+    sde_sample_freq: int = 4
+
 
 @dataclass
 class ExperimentConfig:

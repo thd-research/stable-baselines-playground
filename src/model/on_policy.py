@@ -81,10 +81,12 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
         observation_space: spaces.Space,
         action_space: spaces.Space,
         lr_schedule: Callable[[float], float],
+        dropout: float = 0.1,
         *args,
         **kwargs,
     ):
         # Disable orthogonal initialization
+        self.dropout = dropout
         # kwargs["ortho_init"] = False
         super().__init__(
             observation_space,
@@ -102,6 +104,7 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
             net_arch=self.net_arch,
             activation_fn=self.activation_fn,
             device=self.device,
+            dropout=self.dropout
             )
 
 

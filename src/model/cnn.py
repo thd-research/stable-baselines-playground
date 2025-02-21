@@ -81,19 +81,18 @@ class CustomCNN(BaseFeaturesExtractor):
 
 
 class CustomCNN_2(CustomCNN):
-    def __init__(self, observation_space, features_dim: int = 256, num_frames: int = 4):
+    def __init__(self, observation_space, features_dim: int = 256, num_frames: int = 4, n_channel = 3):
         # Get the shape of the input from the observation space
-        input_channels = num_frames * 3  # Assuming RGB images
+        input_channels = num_frames * n_channel  # Assuming RGB images
         super(CustomCNN, self).__init__(observation_space, features_dim)
 
         self.cnn = nn.Sequential(
-            nn.Conv2d(input_channels, 8, kernel_size=3, stride=2, padding='valid'),
+            nn.Conv2d(input_channels, 16, kernel_size=3, stride=2, padding='valid'),
             nn.ReLU(),
-            nn.Conv2d(8, 16, kernel_size=3, stride=2, padding='valid'),
+            nn.Conv2d(16, 32, kernel_size=3, stride=2, padding='valid'),
             nn.ReLU(),
-            nn.Conv2d(16, 16, kernel_size=3, stride=2, padding='valid'),
+            nn.Conv2d(32, 32, kernel_size=3, stride=2, padding='valid'),
             nn.ReLU(),
-            nn.MaxPool2d(2),
             nn.Flatten(),
         )
 
@@ -115,7 +114,7 @@ class CustomCNN_3(CustomCNN):
         super(CustomCNN, self).__init__(observation_space, features_dim)
 
         self.cnn = nn.Sequential(
-            nn.Conv2d(input_channels, 8, kernel_size=3, stride=2, padding='valid'),
+            nn.Conv2d(input_channels, 4, kernel_size=3, stride=2, padding='valid'),
             nn.ReLU(),
             nn.Flatten(),
         )

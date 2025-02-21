@@ -7,7 +7,7 @@ import numpy as np
 
 from gymnasium import ObservationWrapper
 import gymnasium as gym
-
+import cv2
 
 
 class VisualWrapper(Wrapper):
@@ -83,3 +83,14 @@ class CropObservation(ObservationWrapper):
         cropped_observation = observation[:, self.left_edge:self.right_edge, :]
 
         return cropped_observation
+
+
+class GrayscaleObservation(ObservationWrapper):
+    def __init__(self, env):
+        super().__init__(env)
+
+        image_shape = self.observation_space.shape
+        self.observation_space = spaces.Box(low=0, high=255, shape=(image_shape[0], image_shape[1], 1), dtype=np.uint8)
+
+    def observation(self, obs):
+        return np.expand_dims(cv2.cvtColor(obs, cv2.COLOR_RGB2GRAY), -1)
