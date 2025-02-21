@@ -41,9 +41,9 @@ os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:1024"
 os.makedirs("logs", exist_ok=True)
 
 # Global parameters
-episode_timesteps=6000
-total_timesteps = 50000000
-parallel_envs = 14
+episode_timesteps=1000
+total_timesteps = 100_000_000
+parallel_envs = 20
 n_steps = 1024
 save_model_every_steps = n_steps
 
@@ -55,11 +55,13 @@ ppo_hyperparams = {
     # "learning_rate": 5e-4,  # The step size used to update the policy network. Lower values can make learning more stable.
     "n_steps": n_steps,  # Number of steps to collect before performing a policy update. Larger values may lead to more stable updates.
     "batch_size": n_steps * parallel_envs,  # Number of samples used in each update. Smaller values can lead to higher variance, while larger values stabilize learning.
-    "gamma": 0.99,  # Discount factor for future rewards. Closer to 1 means the agent places more emphasis on long-term rewards.
+    "gamma": 1,  # Discount factor for future rewards. Closer to 1 means the agent places more emphasis on long-term rewards.
     "gae_lambda": 1,  # Generalized Advantage Estimation (GAE) parameter. Balances bias vs. variance; lower values favor bias.
     "n_stacked_frame": 4, # The number of stacked frame feed forward to the policy model
     "clip_range": 0.2,  # Clipping range for the PPO objective to prevent large policy updates. Keeps updates more conservative.
-    "learning_rate": get_linear_fn(1e-3, 0.5e-5, total_timesteps),  # Linear decay from
+    "learning_rate": get_linear_fn(5e-3, 5e-6, total_timesteps),  # Linear decay from
+    "use_sde": False,
+    "sde_sample_freq": 4,
 }
 
 # Global variables for graceful termination
@@ -170,6 +172,8 @@ def main(args, **kwargs):
             clip_range=args.ppo.clip_range,
             verbose=1,
             ent_coef=0.,
+            use_sde=args.ppo.use_sde,
+            sde_sample_freq=args.ppo.sde_sample_freq,
             device=args.ppo.device,
         )
 
@@ -322,12 +326,7 @@ if __name__ == "__main__":
     args = parse_args(ExperimentConfig, 
                     overide_default=ExperimentConfig(
                         ppo=PPOHyperparameters(
-                            learning_rate=ppo_hyperparams["learning_rate"],
-                            n_steps=ppo_hyperparams["n_steps"],
-                            batch_size=ppo_hyperparams["batch_size"],
-                            gamma=ppo_hyperparams["gamma"],
-                            gae_lambda=ppo_hyperparams["gae_lambda"],
-                            clip_range=ppo_hyperparams["clip_range"],
+                            **ppo_hyperparams
                         )
                     ))
 
