@@ -5,7 +5,7 @@ import signal
 import gymnasium as gym
 
 from stable_baselines3 import PPO
-from stable_baselines3.common.utils import set_random_seed
+from stable_baselines3.common.utils import set_random_seed, get_linear_fn
 from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.callbacks import CheckpointCallback, CallbackList, EvalCallback
@@ -34,11 +34,11 @@ os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:1024"
 os.makedirs("logs", exist_ok=True)
 
 # Global parameters
-episode_timesteps=6000
-total_timesteps = 1000000
-parallel_envs = 4
+episode_timesteps=1000
+total_timesteps = 1_000_000
+parallel_envs = 12
 n_steps = 512
-save_model_every_steps = n_steps
+save_model_every_steps = n_steps * parallel_envs
 
 # Define the hyperparameters for PPO
 ppo_hyperparams = {
@@ -48,7 +48,6 @@ ppo_hyperparams = {
     "gamma": 0.99,  # Discount factor for future rewards. Closer to 1 means the agent places more emphasis on long-term rewards.
     "gae_lambda": 1,  # Generalized Advantage Estimation (GAE) parameter. Balances bias vs. variance; lower values favor bias.
     "clip_range": 0.2,  # Clipping range for the PPO objective to prevent large policy updates. Keeps updates more conservative.
-    "n_epochs": 5
     # "learning_rate": get_linear_fn(1e-4, 0.5e-5, total_timesteps),  # Linear decay from
 }
 
@@ -131,7 +130,7 @@ def main(args, **kwargs):
         # Define the policy_kwargs to use the custom CNN
         policy_kwargs = dict(
             activation_fn=torch.nn.PReLU,
-            net_arch=dict(pi=[128,128], vf=[128,128])
+            net_arch=dict(pi=[32,32], vf=[32,32])
         )
 
         # Create the PPO agent using the custom feature extractor
@@ -297,7 +296,12 @@ if __name__ == "__main__":
     args = parse_args(ExperimentConfig, 
                     overide_default=ExperimentConfig(
                         ppo=PPOHyperparameters(
-                            **ppo_hyperparams
+                            learning_rate=ppo_hyperparams["learning_rate"],
+                            n_steps=ppo_hyperparams["n_steps"],
+                            batch_size=ppo_hyperparams["batch_size"],
+                            gamma=ppo_hyperparams["gamma"],
+                            gae_lambda=ppo_hyperparams["gae_lambda"],
+                            clip_range=ppo_hyperparams["clip_range"],
                         )
                     ))
 
