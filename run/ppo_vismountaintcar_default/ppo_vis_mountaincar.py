@@ -5,7 +5,7 @@ import signal
 import gymnasium as gym
 
 from stable_baselines3 import PPO
-from stable_baselines3.common.utils import set_random_seed, get_linear_fn, get_schedule_fn
+from stable_baselines3.common.utils import set_random_seed, get_linear_fn
 from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.vec_env import VecFrameStack, VecTransposeImage
@@ -21,7 +21,7 @@ from src.mygym.lunar_lander import MyLunarLander
 from src.model.cnn import CustomCNN, CustomCNN_2
 
 from src.wrapper.pendulum_wrapper import ResizeObservation
-from src.wrapper.visual_wrapper import VisualWrapper, GrayscaleObservation, MountainCarRewardEngineering
+from src.wrapper.visual_wrapper import VisualWrapper, GrayscaleObservation
 
 from src.callback.plotting_callback import PlottingCallback
 from src.callback.grad_monitor_callback import GradientMonitorCallback
@@ -37,38 +37,33 @@ import torch
 
 
 torch.cuda.empty_cache() 
-os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512"
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:1024"
 os.makedirs("logs", exist_ok=True)
 
 # Global parameters
 episode_timesteps=1000
-total_timesteps = 600_000
-parallel_envs = 3
-n_steps = 2048
+total_timesteps = 10_000_000
+parallel_envs = 4
+n_steps = 1024
 save_model_every_steps = n_steps
 eval_n_step = n_steps * 2
 
-image_height = 128
+image_height = 64
 image_width = 256
-
-# Define a linear decay function
-def linear_schedule(progress_remaining):
-    return 5e-2 * progress_remaining  # progress_remaining goes from 1 to 0
 
 # Define the hyperparameters for PPO
 ppo_hyperparams = {
-    # "learning_rate": 5e-2,  # The step size used to update the policy network. Lower values can make learning more stable.
+    "learning_rate": 1e-3,  # The step size used to update the policy network. Lower values can make learning more stable.
     "n_steps": n_steps,  # Number of steps to collect before performing a policy update. Larger values may lead to more stable updates.
     "batch_size": 512,  # Number of samples used in each update. Smaller values can lead to higher variance, while larger values stabilize learning.
-    "gamma": 1,  # Discount factor for future rewards. Closer to 1 means the agent places more emphasis on long-term rewards.
+    "gamma": 0.9,  # Discount factor for future rewards. Closer to 1 means the agent places more emphasis on long-term rewards.
     "gae_lambda": 0.9,  # Generalized Advantage Estimation (GAE) parameter. Balances bias vs. variance; lower values favor bias.
     "n_stacked_frame": 8, # The number of stacked frame feed forward to the policy model
     "clip_range": 0.2,  # Clipping range for the PPO objective to prevent large policy updates. Keeps updates more conservative.
     "use_sde": False,
     "sde_sample_freq": 4,
     "ent_coef": 0.01,
-    "n_epochs": 15,
-    "learning_rate": get_schedule_fn(linear_schedule),  # Linear decay from
+    # "learning_rate": get_linear_fn(1e-3, 5e-6, total_timesteps),  # Linear decay from
 }
 
 # Global variables for graceful termination
@@ -96,8 +91,8 @@ def main(args, **kwargs):
     # Function to create the base environment
     def make_env(seed, truncated=False):
         def _init():
-            env = gym.make("MountainCarContinuous-v0", render_mode="rgb_array", goal_velocity=0)
-            # env = MountainCarRewardEngineering(env)
+            env = gym.make("MountainCarContinuous-v0", render_mode="rgb_array", goal_velocity=0.1)
+
             env = Monitor(env)
             env = VisualWrapper(env)
             env = ResizeObservation(env, (image_height, image_width))
@@ -155,8 +150,8 @@ def main(args, **kwargs):
 
         # Define the policy_kwargs to use the custom CNN
         policy_kwargs = dict(
-            # activation_fn=torch.nn.Tanh,
-            # net_arch=dict(pi=[128,128], vf=[128,64]),
+            activation_fn=torch.nn.PReLU,
+            net_arch=dict(pi=[128,128], vf=[128,128]),
             features_extractor_class=CustomCNN,
             features_extractor_kwargs=dict(features_dim=256, 
                                            n_channel=1, # gray scale image
