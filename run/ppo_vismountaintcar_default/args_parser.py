@@ -28,11 +28,18 @@ class PPOHyperparameters:
     # The number of stacked frame feed forward to the policy model
     n_stacked_frame: int = 4
 
+    # The number of stacked frame feed forward to the policy model
+    n_epochs: int = 10
+
     device: str = "auto"
 
-    # The number of stacked frame feed forward to the policy model
-    n_epochs: int = 20
+    # Whether to use generalized State Dependent Exploration (gSDE)
+    use_sde: bool = False
 
+    # Sample a new noise matrix every n steps when using gSDE
+    sde_sample_freq: int = 4
+    
+    ent_coef: float = 0.
 
 @dataclass
 class ExperimentConfig:
@@ -58,7 +65,7 @@ class ExperimentConfig:
     loadstep: int | None = None
 
     # Enable logging of simulation data.
-    log: bool = False
+    log: bool = True
 
     # Enable printing of simulation data.
     debug: bool = False
