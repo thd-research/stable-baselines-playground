@@ -12,8 +12,8 @@ from stable_baselines3.common.utils import set_random_seed
 from stable_baselines3.common.vec_env import DummyVecEnv, VecTransposeImage
 from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.vec_env import VecFrameStack
-from stable_baselines3.common.callbacks import CheckpointCallback, CallbackList
 from stable_baselines3.common.vec_env import VecNormalize
+from stable_baselines3.common.callbacks import CheckpointCallback, CallbackList
 
 from gymnasium.wrappers import TimeLimit
 
@@ -33,48 +33,32 @@ from src.utilities.intercept_termination import save_model_and_data, signal_hand
 from src.utilities.mlflow_logger import mlflow_monotoring, get_ml_logger
 
 from run.ppo_visacrobot_default.args_parser import parse_args, ExperimentConfig, PPOHyperparameters
+from src.agent.debug_ppo import DebugPPO
 
 
 os.makedirs("logs", exist_ok=True)
 
 # Global parameters
-total_timesteps = 100000
-episode_timesteps = 4694.063219813597
+total_timesteps = 400_000
+episode_timesteps = 1024
 image_height = 64
 image_width = 64
-n_steps = 1000
+n_steps = 1024
 parallel_envs = 8
-save_model_every_steps = n_steps
-
-# total_timesteps = 131072
-# episode_timesteps = 1024
-# image_height = 64
-# image_width = 64
-# save_model_every_steps = 8192 / 4
-# n_steps = 1024
-# parallel_envs = 8
+save_model_every_steps = episode_timesteps * 8 / parallel_envs
 
 # Define the hyperparameters for PPO
-# ppo_hyperparams = {
-#     "learning_rate": 4e-4,  # The step size used to update the policy network. Lower values can make learning more stable.
-#     "n_steps": n_steps,  # Number of steps to collect before performing a policy update. Larger values may lead to more stable updates.
-#     "batch_size": 512,  # Number of samples used in each update. Smaller values can lead to higher variance, while larger values stabilize learning.
-#     "gamma": 0.99,  # Discount factor for future rewards. Closer to 1 means the agent places more emphasis on long-term rewards.
-#     "gae_lambda": 0.9,  # Generalized Advantage Estimation (GAE) parameter. Balances bias vs. variance; lower values favor bias.
-#     "clip_range": 0.2,  # Clipping range for the PPO objective to prevent large policy updates. Keeps updates more conservative.
-#     "n_stacked_frame": 8, # The number of stacked frame feed forward to the policy model
-#     # "learning_rate": get_linear_fn(1e-4, 0.5e-5, total_timesteps),  # Linear decay from
-# }
-
 ppo_hyperparams = {
-    'learning_rate': 0.0008362404533169248, 
-    'n_steps': 78, 
-    'gamma': 0.9841123198085846, 
-    'gae_lambda': 0.8876995027813951, 
-    "clip_range": 0.2, 
-    "n_stacked_frame": 8,
+    "learning_rate": 3e-4,  # The step size used to update the policy network. Lower values can make learning more stable.
+    "n_steps": n_steps,  # Number of steps to collect before performing a policy update. Larger values may lead to more stable updates.
     "batch_size": 512,  # Number of samples used in each update. Smaller values can lead to higher variance, while larger values stabilize learning.
-    }
+    "gamma": 0.99,  # Discount factor for future rewards. Closer to 1 means the agent places more emphasis on long-term rewards.
+    "gae_lambda": 0.95,  # Generalized Advantage Estimation (GAE) parameter. Balances bias vs. variance; lower values favor bias.
+    "clip_range": 0.2,  # Clipping range for the PPO objective to prevent large policy updates. Keeps updates more conservative.
+    "n_stacked_frame": 7, # The number of stacked frame feed forward to the policy model
+    # "learning_rate": get_linear_fn(1e-4, 0.5e-5, total_timesteps),  # Linear decay from
+}
+
 # Global variables for graceful termination
 is_training = True
 episode_rewards = []  # Collect rewards during training
@@ -101,9 +85,9 @@ def main(args, **kwargs):
         def _init():
             env = gym.make("Acrobot-v1", render_mode="rgb_array")
             # env = LoggingWrapper(env)  # For debugging: log each step. Comment out by default
-            # env = VisualWrapper(env)
+            env = VisualWrapper(env)
             env = TimeLimit(env, max_episode_steps=episode_timesteps)
-            # env = ResizeObservation(env, (image_height, image_width))
+            env = ResizeObservation(env, (image_height, image_width))
             env.reset(seed=seed)
             return env
         return _init
@@ -119,10 +103,10 @@ def main(args, **kwargs):
             env = SubprocVecEnv([make_env(seed) for seed in range(parallel_envs)])
 
         # Apply VecFrameStack to stack frames along the channel dimension
-        # env = VecFrameStack(env, n_stack=args.ppo.n_stacked_frame)
+        env = VecFrameStack(env, n_stack=args.ppo.n_stacked_frame)
 
         # Apply VecTransposeImage
-        # env = VecTransposeImage(env)
+        env = VecTransposeImage(env)
 
         # Apply reward and observation normalization if --normalize flag is provided
         if args.normalize:
@@ -137,19 +121,19 @@ def main(args, **kwargs):
         set_random_seed(args.seed)
 
         # Define the policy_kwargs to use the custom CNN
-        # policy_kwargs = dict(
-        #     features_extractor_class=CustomCNN,
-        #     features_extractor_kwargs=dict(features_dim=256, num_frames=args.ppo.n_stacked_frame)  # Adjust num_frames as needed
-        # )
+        policy_kwargs = dict(
+            features_extractor_class=CustomCNN,
+            features_extractor_kwargs=dict(features_dim=256, num_frames=args.ppo.n_stacked_frame)  # Adjust num_frames as needed
+        )
 
         # Create the PPO agent using the custom feature extractor
-        model = PPO(
-            "MlpPolicy", # "CnnPolicy",
+        model = DebugPPO(
+            "CnnPolicy",
             env,
-            # policy_kwargs=policy_kwargs,
+            policy_kwargs=policy_kwargs,
             learning_rate=args.ppo.learning_rate,
             n_steps=args.ppo.n_steps,
-            # batch_size=args.ppo.batch_size,
+            batch_size=args.ppo.batch_size,
             gamma=args.ppo.gamma,
             gae_lambda=args.ppo.gae_lambda,
             clip_range=args.ppo.clip_range,
@@ -165,7 +149,7 @@ def main(args, **kwargs):
         checkpoint_callback = CheckpointCallback(
             save_freq=save_model_every_steps,  # Save the model periodically
             save_path="./artifacts/checkpoints",  # Directory to save the model
-            name_prefix="ppo_acrobot"
+            name_prefix="ppo_visacrobot"
         )
 
         # Instantiate a plotting callback to show the live learning curve
@@ -196,7 +180,7 @@ def main(args, **kwargs):
         finally:
             print("Training completed or interrupted.")
 
-        model.save("./artifacts/checkpoints/ppo_visacrobot")
+        model.save("./artifacts/checkpoints/ppo_visacrobot_2")
 
         # Save the normalization statistics if --normalize is used
         if args.normalize:
@@ -210,9 +194,9 @@ def main(args, **kwargs):
         if args.eval_checkpoint:
             model = PPO.load(args.eval_checkpoint)
         elif args.loadstep:
-            model = PPO.load(f"./artifacts/checkpoints/ppo_visacrobot_{args.loadstep}_steps")
+            model = PPO.load(f"./artifacts/checkpoints/ppo_visacrobot_2_{args.loadstep}_steps")
         else:
-            model = PPO.load("./artifacts/checkpoints/ppo_visacrobot")
+            model = PPO.load("./artifacts/checkpoints/ppo_visacrobot_2")
 
     # Visual evaluation after training or loading
     print("Starting evaluation...")
@@ -225,8 +209,8 @@ def main(args, **kwargs):
     #     )
     # ])
     env_agent = DummyVecEnv([make_env(0)])
-    # env_agent = VecFrameStack(env_agent, n_stack=args.ppo.n_stacked_frame)
-    # env_agent = VecTransposeImage(env_agent)
+    env_agent = VecFrameStack(env_agent, n_stack=args.ppo.n_stacked_frame)
+    env_agent = VecTransposeImage(env_agent)
 
     # Load the normalization statistics if --normalize is used
     if args.eval_normalize:
@@ -270,7 +254,8 @@ def main(args, **kwargs):
         if done:
             obs = env_agent.reset()  # Reset the agent's environment
             env_display.reset()  # Reset the display environment
-
+            break 
+        
         accumulated_reward += reward
 
         info_dict["state"].append(obs)
@@ -306,7 +291,8 @@ if __name__ == "__main__":
                             gae_lambda=ppo_hyperparams["gae_lambda"],
                             clip_range=ppo_hyperparams["clip_range"],
                             n_stacked_frame=ppo_hyperparams["n_stacked_frame"],
-                        )
+                        ),
+                        normalize=True
                     ))
 
     main(args)

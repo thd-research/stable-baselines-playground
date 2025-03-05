@@ -40,22 +40,22 @@ os.makedirs("logs", exist_ok=True)
 
 # Global parameters
 total_timesteps = 131072
-episode_timesteps = 1456
+episode_timesteps = 1024
 image_height = 64
 image_width = 64
-n_steps = 136
+n_steps = 1024
 parallel_envs = 8
 save_model_every_steps = episode_timesteps * 8 / parallel_envs
 
 # Define the hyperparameters for PPO
 ppo_hyperparams = {
-    "learning_rate": 0.0001509639924034452,  # The step size used to update the policy network. Lower values can make learning more stable.
+    "learning_rate": 0.00015,  # The step size used to update the policy network. Lower values can make learning more stable.
     "n_steps": n_steps,  # Number of steps to collect before performing a policy update. Larger values may lead to more stable updates.
-    "batch_size": n_steps * parallel_envs,  # Number of samples used in each update. Smaller values can lead to higher variance, while larger values stabilize learning.
-    "gamma": 0.92,  # Discount factor for future rewards. Closer to 1 means the agent places more emphasis on long-term rewards.
-    "gae_lambda": 0.85,  # Generalized Advantage Estimation (GAE) parameter. Balances bias vs. variance; lower values favor bias.
+    "batch_size": 512,  # Number of samples used in each update. Smaller values can lead to higher variance, while larger values stabilize learning.
+    "gamma": 0.99,  # Discount factor for future rewards. Closer to 1 means the agent places more emphasis on long-term rewards.
+    "gae_lambda": 0.95,  # Generalized Advantage Estimation (GAE) parameter. Balances bias vs. variance; lower values favor bias.
     "clip_range": 0.2,  # Clipping range for the PPO objective to prevent large policy updates. Keeps updates more conservative.
-    "n_stacked_frame": 7, # The number of stacked frame feed forward to the policy model
+    "n_stacked_frame": 4, # The number of stacked frame feed forward to the policy model
     # "learning_rate": get_linear_fn(1e-4, 0.5e-5, total_timesteps),  # Linear decay from
 }
 
