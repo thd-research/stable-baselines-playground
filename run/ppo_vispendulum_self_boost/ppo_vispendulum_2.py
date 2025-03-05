@@ -4,6 +4,8 @@ import os
 import matplotlib
 import signal
 
+import gymnasium as gym
+
 from stable_baselines3 import PPO
 from stable_baselines3.common.utils import set_random_seed
 from stable_baselines3.common.vec_env import DummyVecEnv, VecTransposeImage
@@ -39,7 +41,7 @@ from run.ppo_vispendulum_self_boost.args_parser import parse_args, ExperimentCon
 os.makedirs("logs", exist_ok=True)
 
 # Global parameters
-total_timesteps = 131072
+total_timesteps = 500_000
 episode_timesteps = 1024
 image_height = 64
 image_width = 64
@@ -69,6 +71,9 @@ def main(args, **kwargs):
     # Register signal handlers
     signal.signal(signal.SIGINT, lambda sig, frame: signal_handler(sig, frame))
     signal.signal(signal.SIGTERM, lambda sig, frame: signal_handler(sig, frame))
+
+    experiment_name = kwargs.get("experiment_name")
+    run_name = kwargs.get("run_name")
 
     if kwargs.get("use_mlflow"):
         loggers = get_ml_logger(args.debug)
@@ -154,7 +159,7 @@ def main(args, **kwargs):
         checkpoint_callback = CheckpointCallback(
             save_freq=save_model_every_steps,  # Save the model periodically
             save_path="./artifacts/checkpoints",  # Directory to save the model
-            name_prefix="ppo_vispendulum"
+            name_prefix="ppo_vispendulum_2"
         )
 
         # Instantiate a plotting callback to show the live learning curve
@@ -185,7 +190,7 @@ def main(args, **kwargs):
         finally:
             print("Training completed or interrupted.")
 
-        model.save("./artifacts/checkpoints/ppo_vispendulum")
+        model.save("./artifacts/checkpoints/ppo_vispendulum_2")
 
         # Save the normalization statistics if --normalize is used
         if args.normalize:
@@ -201,7 +206,7 @@ def main(args, **kwargs):
         elif args.loadstep:
             model = PPO.load(f"./artifacts/checkpoints/ppo_vispendulum_{args.loadstep}_steps")
         else:
-            model = PPO.load("./artifacts/checkpoints/ppo_vispendulum")
+            model = PPO.load("./artifacts/checkpoints/ppo_vispendulum_2")
 
     # Visual evaluation after training or loading
     print("Starting evaluation...")
@@ -220,6 +225,11 @@ def main(args, **kwargs):
     # Environment for visualization (using 'human' mode)
     env_display = PendulumVisual(render_mode="rgb_array" if args.console else "human")
 
+    if args.console and args.record:
+        video_dir = f"./artifacts/eval_video/{experiment_name}/{run_name}"
+        env_display = gym.wrappers.RecordVideo(env_display, 
+                                               video_dir,
+                                               episode_trigger=lambda x: x >= 0)
     # Reset the environments
     env_agent.seed(seed=args.seed)
     
@@ -267,12 +277,12 @@ def main(args, **kwargs):
 
     df = pd.DataFrame(info_dict)
     if args.eval_name:
-        file_name = f"ppo_vispendulum_eval_{args.eval_name}_seed_{args.seed}.csv"
+        file_name = f"ppo_vispendulum_eval_{args.eval_name}_seed_{args.seed}.pkl"
     else:
-        file_name = f"ppo_vispendulum_eval_{args.loadstep}_seed_{args.seed}.csv"
+        file_name = f"ppo_vispendulum_eval_{args.loadstep}_seed_{args.seed}.pkl"
 
     if args.log:
-        df.to_csv("logs/" + file_name)
+        df.to_pickle("logs/" + file_name)
 
     print("Case:", file_name)
     print(df.drop(columns=["state"]).tail(2))
